@@ -1,0 +1,113 @@
+<p align="center">
+  <img src="docs/assets/ui_rubber_macro.png" alt="chrōma в тёмной теме Rubber: тулбар с пиксельным логотипом, rack из четырёх слотов (два Ophan и два пустых), живые кривые EQ левого и правого канала поверх спектра, панель Ophan с ручками." width="100%">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1-FF6B2C?style=flat-square&labelColor=18191C" alt="version 1">
+  <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-EDEDE9?style=flat-square&labelColor=18191C" alt="macOS, Apple Silicon">
+  <img src="https://img.shields.io/badge/formats-VST3%20%C2%B7%20AU-8EA0FF?style=flat-square&labelColor=18191C" alt="VST3 and AU">
+  <img src="https://img.shields.io/badge/vibe-coded-FF7AA2?style=flat-square&labelColor=18191C" alt="vibe-coded">
+</p>
+
+<p align="center">
+  <a href="https://github.com/controloptioncommand/chroma-vst/releases/latest/download/chroma-macOS.zip"><b>⬇ Скачать chrōma для macOS</b></a>
+</p>
+
+---
+
+**chrōma** — вайбкод-плагин: rack с экспериментальными эффектами обработки. Не базовые ревербы и дилеи, а приёмы, которые в DAW собираются из пяти устройств и десятка маппингов, — здесь они одним эффектом.
+
+Брат [Mist](https://github.com/controloptioncommand/Mist-vst), [Eido](https://github.com/controloptioncommand/Eido-vst) и [Talk2Me](https://github.com/controloptioncommand/Talk2me): те же темы Oxygen и Rubber, шрифты Medeo и страница About.
+
+## Rack
+
+Четыре слота, сигнал идёт слева направо. У каждого слота — переключатель On, Mix и свои ручки.
+
+- Порядок — перетаскиванием карточек или в меню слота («⋯» или правый клик): Move left, Move right, Duplicate, Clear slot.
+- Автоматизация привязана к слоту: переставили эффект — его дорожки автоматизации поехали вместе с ним.
+- Выключенный или пустой слот пропускает звук без изменений.
+
+## Ophan — Biblically accurate EQ
+
+Первый эффект. Повторяет известный Ableton-рецепт, который обычно собирают из EQ Eight и пяти LFO:
+
+| В Ableton | В Ophan |
+|---|---|
+| EQ Eight в режиме **L/R**: полоса 1 — срез низа, полосы 2–8 — колокола, Q 6–18, **Adaptive Q**, **Scale 200%** | То же внутри: срез низа и семь узких колоколов на каждый канал |
+| LFO 1 → Gain левых полос, 20↔80% через полосу | LFO усиления, левый канал |
+| LFO 2 → Gain правых полос | LFO усиления, правый канал |
+| LFO 3 → Freq левых полос: 40–50, 50–60 … 80–90, 40–100, 100–40% | LFO частоты, левый канал |
+| LFO 4 → Freq правых полос | LFO частоты, правый канал |
+| Все четыре — **Stray**, скорости на макро Rate | **Shape** и **Rate** |
+| LFO 5 (Stray, ~0.35 Гц, Mod 30–40%) → макро Rate | **Drift** |
+
+Каналы двигаются независимо — колокола «бегают» по спектру и по стереобазе.
+
+**Macro** — Shape (Sine / Stray), **Rate** (0.02–12 Гц), **Drift** (насколько плавает скорость), **Depth** (Scale EQ Eight, 0–200%), **Q** (25–400% от рецепта), **Spread** (0 — правый канал повторяет левый, 100% — независимы), **Low cut** (10 Гц – 2 кГц), **Mix**.
+
+**Advanced** — весь рецепт числами: для каждой из 7 полос и каждого канала диапазон частоты (from → to), диапазон усиления и Q. Тянуть вверх/вниз, Shift — точнее, двойной клик — значение рецепта. Там же **Drift rate** и **Reset to recipe**.
+
+<p align="center">
+  <img src="docs/assets/ui_oxygen_advanced.png" alt="chrōma в светлой теме Oxygen: вкладка Advanced — сетка из семи полос для левого и правого канала с диапазонами частоты, усиления и Q." width="100%">
+</p>
+
+Честно о сходстве. Сетка и диапазоны взяты из видео, где рецепт показывают: частоты левого канала, Q, маппинги усиления и частоты, Scale 200%, скорость и глубина пятого LFO. Чего в видео не видно, подобрано на слух: «нечётные» частоты правого канала сдвинуты на полшага шкалы, часть Q правого канала, форма волны Stray (у Ableton свой генератор, здесь — свой) и степень Adaptive Q.
+
+## Окно
+
+- **Curves** — живые кривые левого (синий) и правого (розовый) канала выбранного слота с номерами полос поверх спектра выхода. **Scope** — волна на выходе.
+- На карточках слотов — миниатюры кривых, Mix и скорость LFO.
+- В тулбаре уровни **In** и **Out** (громкость — перетаскиванием по шкале), мини-спектрограмма — просто для красоты.
+
+## Пресеты
+
+10 фабричных: Biblically Accurate (рецепт один в один), Twerking, Gentle Halo, Sine Choir, Mono Prayer, Glossolalia, Thin Air, Wheels Within Wheels, Six Wings, Be Not Afraid. Пресет хранит весь rack: слоты, порядок и Advanced. Свои — меню пресета → Save preset, лежат в `~/Music/chroma/Presets/*.chroma`.
+
+## Две темы
+
+**Oxygen** — светлая, **Rubber** — тёмная, или по системе: иконка настроек → Appearance. Там же размер окна.
+
+## Установка
+
+1. Скачайте **[chroma-macOS.zip](https://github.com/controloptioncommand/chroma-vst/releases/latest/download/chroma-macOS.zip)** и распакуйте.
+2. В Терминале:
+   ```bash
+   bash ~/Downloads/chroma-macOS/install-mac.sh
+   ```
+   Скрипт кладёт `chroma.vst3` и `chroma.component` в `~/Library/Audio/Plug-Ins` и снимает карантин macOS: плагин подписан ad-hoc, без сертификата Apple.
+3. Перезапустите Ableton или Settings → Plug-Ins → Rescan. chrōma — аудиоэффект: кладите его на любую дорожку.
+
+В архиве есть папка `demo`: сухой сигнал и он же через пресеты. Подробное руководство — **[chroma-manual.pdf](docs/chroma-manual.pdf)**, оно же лежит в архиве релиза.
+
+Нужен Mac на Apple Silicon и macOS 11 или новее. Каждое изменение в `main` автоматически собирается, проходит pluginval и auval и выкладывается в [Releases](https://github.com/controloptioncommand/chroma-vst/releases).
+
+## Сборка
+
+```bash
+cmake -B build -DCHROMA_BUILD_TESTS=ON && cmake --build build --config Release --target chroma_VST3 chroma_AU ChromaTest
+./build/ChromaTest_artefacts/Release/ChromaTest ./render
+```
+
+JUCE 8 скачивается автоматически.
+
+Руководство в PDF собирается из `docs/manual/chroma-manual.html`: тест снимает свежие скриншоты, Chromium печатает PDF в `docs/chroma-manual.pdf` (нужны Python 3 с Pillow и Node.js с Playwright):
+
+```bash
+bash docs/manual/build.sh
+```
+
+Тест проверяет фильтры и LFO, рендерит Ophan на разных частотах дискретизации (не тишина, не NaN, не выше 0 dBFS, каналы различаются), обход пустых и выключенных слотов бит-в-бит, крайние значения, порядок цепочки и сохранение состояния, все пресеты, скорость, пишет демо-WAV и снимает скриншоты интерфейса.
+
+## Устройство
+
+| Где | Что |
+|---|---|
+| `Source/DSP/Ophan.*` | Ophan: SVF-фильтры, рецепт, пять LFO |
+| `Source/DSP/Lfo.h` | LFO: Sine и Stray |
+| `Source/PluginProcessor.*` | Rack: слоты, порядок, состояние, метры |
+| `Source/Params.*`, `Source/Presets.*` | Параметры слотов и пресеты |
+| `Source/UI/` | Интерфейс, темы Oxygen / Rubber, карточки rack, кривые, панель Macro / Advanced, About |
+
+Написан на C++ и [JUCE 8](https://juce.com). Чужой код и данные — в [THIRD_PARTY.md](THIRD_PARTY.md).
+
+<p align="center"><sub>made by nnn · vibe-coded with Claude</sub></p>

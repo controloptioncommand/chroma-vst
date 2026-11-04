@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>chrōma — руководство</title>
+<style>
+@font-face { font-family: "Medeo Sans"; src: url("../../Resources/Fonts/MedeoSans-Regular.ttf"); font-weight: 400; }
+@font-face { font-family: "Medeo Sans"; src: url("../../Resources/Fonts/MedeoSans-SemiBold.ttf"); font-weight: 600; }
+@font-face { font-family: "Medeo Mono"; src: url("../../Resources/Fonts/MedeoMono-Regular.ttf"); font-weight: 400; }
+@font-face { font-family: "Medeo Mono"; src: url("../../Resources/Fonts/MedeoMono-SemiBold.ttf"); font-weight: 600; }
+@font-face { font-family: "Medeo Pixel"; src: url("../../Resources/Fonts/MedeoPixel-Regular.ttf"); }
+
+:root {
+  --window: #E4E5E1; --surface: #F5F5F2; --well: #E9EAE6; --track: #C2C3BE;
+  --ink: #131416; --ink2: #4B4D52; --signal: #E84A00; --carrier: #2740F0; --mod: #D7245E; --live: #138A62;
+  --outline: rgba(19,20,22,.12);
+}
+@page { size: A4; margin: 16mm 16mm 18mm 16mm; }
+@page :first { margin: 0; }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin: 0; font-family: "Medeo Sans", sans-serif; font-size: 10pt; line-height: 1.5; color: var(--ink); background: #fff; }
+h1, h2, h3 { font-weight: 600; line-height: 1.2; margin: 0; }
+h2 { font-size: 20pt; margin: 0 0 4mm; padding-top: 1mm; }
+h2 .n { font-family: "Medeo Mono"; color: var(--signal); font-size: 11pt; vertical-align: 4pt; margin-right: 3mm; }
+h3 { font-size: 12pt; margin: 6mm 0 2mm; }
+p { margin: 0 0 2.5mm; }
+ul, ol { margin: 0 0 3mm; padding-left: 5mm; }
+li { margin-bottom: 1.2mm; }
+b, strong { font-weight: 600; }
+code, .mono { font-family: "Medeo Mono", monospace; font-size: 9pt; }
+code { background: var(--well); border: 1px solid var(--outline); border-radius: 4px; padding: 0 1.2mm; }
+.lead { font-size: 11.5pt; color: var(--ink2); margin-bottom: 5mm; }
+section { break-before: page; }
+.keep { break-inside: avoid; }
+
+figure { margin: 3mm 0 4mm; break-inside: avoid; }
+figure img { width: 100%; max-width: 150mm; margin: 0 auto; display: block; border-radius: 10px; border: 1px solid var(--outline); }
+figcaption { font-size: 8.5pt; color: var(--ink2); margin-top: 1.5mm; text-align: center; }
+.small img { max-width: 110mm; }
+.mid img { max-width: 118mm; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+.side { display: grid; grid-template-columns: 52mm 1fr; gap: 6mm; align-items: start; }
+
+table { width: 100%; border-collapse: collapse; margin: 1mm 0 4mm; font-size: 9.3pt; break-inside: auto; }
+th { text-align: left; font-weight: 600; color: var(--ink2); font-size: 8.5pt; text-transform: uppercase; letter-spacing: .04em;
+     border-bottom: 1px solid var(--ink); padding: 1.5mm 2mm 1.5mm 0; }
+td { border-bottom: 1px solid var(--outline); padding: 1.6mm 2mm 1.6mm 0; vertical-align: top; }
+tr { break-inside: avoid; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-space: nowrap; }
+
+.note { background: var(--surface); border: 1px solid var(--outline); border-left: 3px solid var(--signal); border-radius: 8px;
+        padding: 3mm 4mm; margin: 3mm 0 4mm; break-inside: avoid; }
+.note b:first-child { color: var(--signal); }
+.chip { display: inline-block; font-size: 8.5pt; font-weight: 600; border-radius: 99px; padding: 0 2mm; border: 1px solid var(--outline); background: var(--surface); }
+.c { color: var(--carrier); font-weight: 600; } .m { color: var(--mod); font-weight: 600; } .s { color: var(--signal); font-weight: 600; }
+.steps { counter-reset: s; list-style: none; padding: 0; }
+.steps li { counter-increment: s; position: relative; padding-left: 9mm; margin-bottom: 2.5mm; }
+.steps li::before { content: counter(s); position: absolute; left: 0; top: .2mm; width: 6mm; height: 6mm; border-radius: 50%;
+  background: var(--ink); color: #fff; font-family: "Medeo Mono"; font-size: 8.5pt; text-align: center; line-height: 6mm; }
+
+/* обложка */
+.cover { height: 297mm; background: #0F1012; color: #EDEDE9; position: relative; overflow: hidden; break-after: page; }
+.cover .grid { position: absolute; inset: 0; background-image: radial-gradient(rgba(237,237,233,.10) 1px, transparent 1.2px); background-size: 6mm 6mm; }
+.cover .logo { position: absolute; left: 0; right: 0; top: 96mm; text-align: center; font-family: "Medeo Pixel"; font-size: 84pt; line-height: 1; letter-spacing: 0; }
+.cover .sub { position: absolute; left: 0; right: 0; top: 140mm; text-align: center; font-size: 13pt; color: #A9AAAE; }
+.cover .sub b { color: #FF6B2C; font-weight: 600; }
+.cover .shot { position: absolute; left: 38mm; right: 38mm; top: 160mm; }
+.cover .shot img { width: 100%; border-radius: 12px; border: 1px solid rgba(237,237,233,.12); }
+.cover .foot { position: absolute; left: 16mm; right: 16mm; bottom: 12mm; display: flex; justify-content: space-between;
+  font-family: "Medeo Mono"; font-size: 8.5pt; color: #A9AAAE; }
+
+.toc { columns: 2; column-gap: 8mm; list-style: none; padding: 0; margin-top: 4mm; }
+.toc li { break-inside: avoid; display: flex; gap: 3mm; padding: 1.6mm 0; border-bottom: 1px solid var(--outline); }
+.toc .mono { color: var(--signal); width: 7mm; }
+.algs { columns: 2; column-gap: 8mm; font-size: 9pt; }
+.algs div { break-inside: avoid; display: grid; grid-template-columns: 7mm 30mm 1fr; padding: .9mm 0; border-bottom: 1px solid var(--outline); }
+.algs .mono { color: var(--ink2); font-size: 8.3pt; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="grid"></div>
+  <div class="logo">chrōma</div>
+  <div class="sub">Руководство пользователя · <b>v1</b></div>
+  <div class="shot"><img src="img/main.jpg"></div>
+  <div class="foot"><span>effect rack · VST3 · AU · macOS</span><span>made by nnn</span></div>
+</div>
+
+<section style="break-before: auto">
+  <h2>Содержание</h2>
+  <ul class="toc">
+    <li><span class="mono">01</span>Что такое chrōma</li>
+    <li><span class="mono">02</span>Установка</li>
+    <li><span class="mono">03</span>Первый звук за минуту</li>
+    <li><span class="mono">04</span>Окно плагина</li>
+    <li><span class="mono">05</span>Rack: слоты и порядок</li>
+    <li><span class="mono">06</span>Главный вид: Curves и Scope</li>
+    <li><span class="mono">07</span>Ophan: как устроен</li>
+    <li><span class="mono">08</span>Ophan: Macro</li>
+    <li><span class="mono">09</span>Ophan: Advanced</li>
+    <li><span class="mono">10</span>Пресеты и настройки</li>
+    <li><span class="mono">11</span>Рецепты</li>
+    <li><span class="mono">12</span>Вопросы и ответы</li>
+  </ul>
+
+  <h2 style="margin-top: 10mm"><span class="n">01</span>Что такое chrōma</h2>
+  <p class="lead">chrōma — rack с экспериментальными эффектами обработки. Приёмы, которые в DAW собирают из нескольких устройств и десятка маппингов, здесь собраны в один эффект.</p>
+  <ul>
+    <li>Цепочка из <b>четырёх слотов</b>: сигнал идёт слева направо, порядок меняется перетаскиванием.</li>
+    <li>У каждого слота — переключатель <b>On</b>, <b>Mix</b> и ручки эффекта. Автоматизация привязана к слоту и едет вместе с ним.</li>
+    <li>Первый эффект — <b>Ophan</b>, «Biblically accurate EQ»: EQ Eight в режиме L/R, семь узких колоколов на канал и пять LFO, которые гоняют их по спектру и по стереобазе.</li>
+    <li>Живые кривые левого и правого канала поверх спектра выхода.</li>
+    <li>10 фабричных пресетов. Весь rack сохраняется в проекте Ableton.</li>
+  </ul>
+  <div class="note"><b>Как читать.</b> Названия ручек и кнопок даны так, как они подписаны в плагине (по-английски). Диапазоны — моноширинным шрифтом.</div>
+</section>
+
+<section>
+  <h2><span class="n">02</span>Установка</h2>
+  <p>Нужен Mac с macOS 11 или новее. Плагин не подписан сертификатом Apple, поэтому ставится скриптом, который снимает карантин.</p>
+  <h3>Одной командой в Терминале</h3>
+  <p>Нужен установленный <code>gh</code> (GitHub CLI). Команда скачивает последний релиз, распаковывает и устанавливает:</p>
+  <p><code style="display:block; padding: 2.5mm 3mm; line-height: 1.6; white-space: pre-wrap; word-break: break-all;">cd ~/Downloads &amp;&amp; rm -rf chroma-macOS chroma-macOS.zip &amp;&amp; gh release download -R controloptioncommand/chroma-vst -p chroma-macOS.zip &amp;&amp; unzip -q chroma-macOS.zip -d chroma-macOS &amp;&amp; bash chroma-macOS/install-mac.sh</code></p>
+  <h3>Вручную</h3>
+  <ol class="steps">
+    <li>Скачайте <b>chroma-macOS.zip</b> со страницы релизов: <span class="mono">github.com/controloptioncommand/chroma-vst/releases</span>.</li>
+    <li>Распакуйте архив двойным кликом.</li>
+    <li>В Терминале выполните <code>bash ~/Downloads/chroma-macOS/install-mac.sh</code>. Скрипт кладёт <code>chroma.vst3</code> и <code>chroma.component</code> в <code>~/Library/Audio/Plug-Ins</code>.</li>
+    <li>Перезапустите Ableton. Если chrōma не появилась: Settings → Plug-Ins → Rescan.</li>
+  </ol>
+  <p>В архиве есть папка <code>demo</code>: сухой сигнал и он же через пресеты. Обновление — та же команда: новая версия заменит старую, проекты и пресеты не трогаются.</p>
+
+  <h2 style="margin-top: 10mm"><span class="n">03</span>Первый звук за минуту</h2>
+  <ol class="steps">
+    <li>Положите chrōma на дорожку с пэдом, аккордами или вокалом (это аудиоэффект) и включите воспроизведение. Первый слот уже занят Ophan с рецептом из видео.</li>
+    <li>Смотрите на главный вид: синие и розовые колокола гуляют по спектру — это левый и правый канал.</li>
+    <li>Покрутите <b>Rate</b> — скорость движения, и <b>Depth</b> — насколько сильно колокола поднимают и вырезают.</li>
+    <li>Сведите <b>Spread</b> в 0 — каналы станут одинаковыми, эффект перестанет «разъезжаться» по стерео.</li>
+    <li>Кликните «+ Add effect» во втором слоте — получите второй Ophan после первого. Поставьте ему другой Rate.</li>
+    <li>Листайте пресеты стрелками <b>‹ ›</b> в тулбаре.</li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="n">04</span>Окно плагина</h2>
+  <figure style="margin-top:0"><img src="img/main.jpg" style="max-width: 100mm"><figcaption>Главное окно в тёмной теме Rubber.</figcaption></figure>
+  <table>
+    <tr><th style="width:34mm">Зона</th><th>Что там</th></tr>
+    <tr><td>Тулбар</td><td>Логотип (клик — страница About), пресет <span class="mono">‹ имя ›</span>, мини-спектрограмма, уровни In и Out, настройки.</td></tr>
+    <tr><td>Rack</td><td>Четыре слота цепочки. Выбранный слот обведён.</td></tr>
+    <tr><td>Главный вид</td><td>Curves — кривые выбранного слота поверх спектра, Scope — волна на выходе.</td></tr>
+    <tr><td>Панель</td><td>Ручки выбранного слота: вкладки Macro и Advanced. Внизу — On и CPU.</td></tr>
+  </table>
+  <h3>Тулбар</h3>
+  <figure><img src="img/toolbar.jpg"></figure>
+  <ul>
+    <li><b>‹ ›</b> — предыдущий и следующий пресет. Клик по имени — список: фабричные, ваши, Save preset…, Show presets folder.</li>
+    <li><b>Мини-спектрограмма</b> — просто украшение: спектр выхода пиксельной лентой.</li>
+    <li><b>In</b> — уровень на входе плагина.</li>
+    <li><b>Out</b> — громкость выхода <span class="mono">−36…+12 dB</span> (по умолчанию <span class="mono">0</span>): тяните по шкале, двойной клик — <span class="mono">0</span>. Цветная полоса — уровень сигнала, выше −1 dB она оранжевая. Выход защищён мягким лимитером: ниже −1 dBFS он ничего не трогает, выше 0 dBFS не бывает.</li>
+    <li><b>Настройки</b> — тема, размер окна, сохранение пресета, About.</li>
+  </ul>
+  <div class="note"><b>Масштаб.</b> Окно тянется за правый нижний угол от 50 до 200%, пропорции сохраняются. Быстрые размеры: настройки → Size (75, 100, 125, 150%).</div>
+</section>
+
+<section>
+  <h2><span class="n">05</span>Rack: слоты и порядок</h2>
+  <figure style="margin-top:0"><img src="img/rack.jpg"><figcaption>Два Ophan подряд и два пустых слота. Шевроны между карточками — направление сигнала.</figcaption></figure>
+  <p>Сигнал проходит слоты слева направо. На карточке: номер места в цепочке, имя эффекта, переключатель <b>On</b>, меню <b>⋯</b>, миниатюра кривых, Mix и скорость LFO.</p>
+  <table>
+    <tr><th style="width:40mm">Действие</th><th>Как</th></tr>
+    <tr><td>Выбрать слот</td><td>Клик по карточке. Панель внизу и главный вид показывают выбранный слот.</td></tr>
+    <tr><td>Добавить эффект</td><td>Клик по пустой карточке или кнопка Add Ophan в панели.</td></tr>
+    <tr><td>Включить / выключить</td><td>Переключатель на карточке или On в подвале панели. Выключенный слот пропускает звук без изменений.</td></tr>
+    <tr><td>Переставить</td><td>Перетащите карточку: оранжевая риска показывает, куда она встанет. Или меню ⋯ → Move left / Move right.</td></tr>
+    <tr><td>Дублировать</td><td>Меню ⋯ → Duplicate: копия со всеми ручками и Advanced встаёт сразу за оригиналом (нужен свободный слот).</td></tr>
+    <tr><td>Очистить</td><td>Меню ⋯ → Clear slot.</td></tr>
+  </table>
+  <h3>С клавиатуры</h3>
+  <p>Tab до полосы слотов, затем <span class="mono">← →</span> — выбор, <span class="mono">⌥← ⌥→</span> — переставить, пробел — On, Return — меню.</p>
+  <div class="note"><b>Автоматизация едет за слотом.</b> Параметры принадлежат слоту, а не месту в цепочке (<span class="mono">Slot 1 Rate</span>, <span class="mono">Slot 2 Rate</span>…). Переставили слот — его дорожки автоматизации продолжают управлять им же.</div>
+</section>
+
+<section>
+  <h2><span class="n">06</span>Главный вид: Curves и Scope</h2>
+  <figure style="margin-top:0"><img src="img/view_curves.jpg"><figcaption>Curves: синяя кривая — левый канал, розовая — правый; кружки — полосы 2–8, как в EQ Eight.</figcaption></figure>
+  <ul>
+    <li><b>Curves</b> — суммарная АЧХ выбранного слота для левого и правого канала, с учётом Low cut и Mix. Шкала <span class="mono">±30 dB</span>, пунктир через 12 dB. Серая заливка — спектр выхода.</li>
+    <li>Слева сверху — номер слота и текущая скорость LFO с учётом Drift.</li>
+    <li><b>Scope</b> — волна на выходе, цвет по громкости.</li>
+  </ul>
+  <figure><img src="img/view_scope.jpg"><figcaption>Scope.</figcaption></figure>
+  <p>Вкладки — снизу справа; с клавиатуры: <span class="mono">← →</span>, когда вид в фокусе.</p>
+</section>
+
+<section>
+  <h2><span class="n">07</span>Ophan: как устроен</h2>
+  <p class="lead">Ophan повторяет Ableton-рецепт «Biblically accurate EQ» — тот, где EQ Eight в режиме L/R и пять LFO собраны в Audio Effect Rack.</p>
+  <table>
+    <tr><th style="width:62mm">В Ableton</th><th>В Ophan</th></tr>
+    <tr><td style="white-space:normal">EQ Eight, режим L/R</td><td>Свой эквалайзер на каждый канал</td></tr>
+    <tr><td style="white-space:normal">Полоса 1 — срез низа (Q 0.71)</td><td><b>Low cut</b></td></tr>
+    <tr><td style="white-space:normal">Полосы 2–8 — колокола, Q 6–18, Adaptive Q</td><td>Семь колоколов, Q из видео, сужаются при большом усилении</td></tr>
+    <tr><td style="white-space:normal">Scale 200%</td><td><b>Depth</b> 200%</td></tr>
+    <tr><td style="white-space:normal">LFO 1 и 2 → Gain левых и правых полос, 20↔80% через полосу</td><td>LFO усиления</td></tr>
+    <tr><td style="white-space:normal">LFO 3 и 4 → Freq левых и правых полос</td><td>LFO частоты</td></tr>
+    <tr><td style="white-space:normal">Все четыре — Stray, скорость на макро Rate</td><td><b>Shape</b>, <b>Rate</b></td></tr>
+    <tr><td style="white-space:normal">LFO 5 (Stray, ~0.35 Гц, Mod 30–40%) → макро Rate</td><td><b>Drift</b>, <b>Drift rate</b></td></tr>
+  </table>
+  <p>Четыре LFO независимы, поэтому колокола левого и правого канала оказываются в разных местах: звук «шевелится» и разъезжается по стерео. Через полосу усиление идёт в противофазе — пока одни колокола поднимаются, соседние вырезают.</p>
+  <h3>Stray</h3>
+  <p>Блуждающая волна: каждый полупериод своей длины (×0.55–1.55) и высоты (35–100%), полупериоды плавно сшиты. В отличие от синуса, движение не повторяется.</p>
+  <div class="note"><b>Честно о сходстве.</b> Из видео взяты частоты и Q левого канала, маппинги усиления и частоты, Scale 200%, скорость и глубина пятого LFO. Чего в видео не видно, подобрано на слух: «нечётные» частоты правого канала (сдвиг на полшага шкалы EQ Eight), часть Q правого канала, форма Stray (у Ableton свой генератор) и степень Adaptive Q.</div>
+</section>
+
+<section>
+  <h2><span class="n">08</span>Ophan: Macro</h2>
+  <figure style="margin-top:0"><img src="img/panel_macro.jpg"><figcaption>Вкладка Macro.</figcaption></figure>
+  <table>
+    <tr><th style="width:26mm">Ручка</th><th style="width:30mm">Диапазон</th><th>Что делает</th></tr>
+    <tr><td>Shape</td><td class="r">Sine / Stray</td><td>Форма четырёх LFO. По умолчанию Stray, как в видео.</td></tr>
+    <tr><td>Rate</td><td class="r">0.02–12 Hz</td><td>Общая скорость четырёх LFO. По умолчанию 1 Hz.</td></tr>
+    <tr><td>Drift</td><td class="r">0–100%</td><td>Насколько пятый LFO плавает скоростью: 35% — примерно ±0.7 октавы, 100% — ±2 октавы.</td></tr>
+    <tr><td>Depth</td><td class="r">0–200%</td><td>Scale EQ Eight: множитель усиления всех полос. 200% — рецепт, 0 — колокола выключены.</td></tr>
+    <tr><td>Q</td><td class="r">25–400%</td><td>Множитель Q всех полос: меньше — шире и мягче, больше — тоньше и «свистящее».</td></tr>
+    <tr><td>Spread</td><td class="r">0–100%</td><td>0 — правый канал повторяет левый (моно-совместимо), 100% — каналы независимы.</td></tr>
+    <tr><td>Low cut</td><td class="r">10 Hz – 2 kHz</td><td>Срез низа (полоса 1 EQ Eight), 12 dB/окт. По умолчанию 225 Hz.</td></tr>
+    <tr><td>Mix</td><td class="r">0–100%</td><td>Сухой / обработанный сигнал слота. 0 — звук без изменений.</td></tr>
+    <tr><td>On</td><td class="r">вкл / выкл</td><td>В подвале панели и на карточке.</td></tr>
+  </table>
+  <p>Двойной клик по ручке — значение по умолчанию.</p>
+</section>
+
+<section>
+  <h2><span class="n">09</span>Ophan: Advanced</h2>
+  <figure style="margin-top:0"><img src="img/panel_advanced.jpg"><figcaption>Вкладка Advanced: весь рецепт числами.</figcaption></figure>
+  <p>Для каждой из семи полос (номера как в EQ Eight, 2–8) и каждого канала:</p>
+  <ul>
+    <li><b>Freq from</b> и <b>Freq to</b> — куда LFO частоты ведёт колокол в нижней и в верхней точке. Если from больше to — движение в обратную сторону (так у полосы 8).</li>
+    <li><b>Gain from</b> и <b>Gain to</b> — усиление в нижней и верхней точке LFO усиления, <span class="mono">−15…+15 dB</span> по шкале EQ Eight, затем умножается на Depth.</li>
+    <li><b>Q</b> — добротность колокола, затем умножается на ручку Q.</li>
+  </ul>
+  <p>Число тянут мышью вверх / вниз, с Shift — точнее. Двойной клик — значение рецепта. С клавиатуры: <span class="mono">↑ ↓</span>, Backspace — значение рецепта.</p>
+  <ul>
+    <li><b>Drift rate</b> — скорость пятого LFO, по умолчанию <span class="mono">0.35 Hz</span>.</li>
+    <li><b>Reset to recipe</b> — вернуть все числа слота к рецепту.</li>
+  </ul>
+  <div class="note"><b>Где хранится.</b> Advanced — не параметры хоста (их было бы 140 на слот), поэтому не автоматизируется. Сохраняется в проекте и в пресете. Фабричные пресеты всегда ставят рецепт.</div>
+</section>
+
+<section>
+  <h2><span class="n">10</span>Пресеты и настройки</h2>
+  <table>
+    <tr><th style="width:44mm">Пресет</th><th>Что это</th></tr>
+    <tr><td>Biblically Accurate</td><td>Рецепт из видео один в один.</td></tr>
+    <tr><td>Twerking</td><td>Быстрее и с большим Drift.</td></tr>
+    <tr><td>Gentle Halo</td><td>Медленно, мягко, Mix 70%.</td></tr>
+    <tr><td>Sine Choir</td><td>Синусы без Drift: ровное, предсказуемое движение.</td></tr>
+    <tr><td>Mono Prayer</td><td>Spread 0 — каналы одинаковые.</td></tr>
+    <tr><td>Glossolalia</td><td>Быстро и узко: «говорящий» фильтр.</td></tr>
+    <tr><td>Thin Air</td><td>Высокий срез низа, медленное движение.</td></tr>
+    <tr><td>Wheels Within Wheels</td><td>Два Ophan: медленный и быстрый поверх.</td></tr>
+    <tr><td>Six Wings</td><td>Два Ophan: широкий и очень узкий.</td></tr>
+    <tr><td>Be Not Afraid</td><td>Всё на максимум.</td></tr>
+  </table>
+  <p>Пресет хранит весь rack: типы и ручки слотов, порядок и Advanced. Громкость Out пресет не меняет. Свои пресеты — меню пресета → <b>Save preset…</b>, лежат в <code>~/Music/chroma/Presets/*.chroma</code>.</p>
+  <h3>Темы</h3>
+  <p><b>Oxygen</b> — светлая, <b>Rubber</b> — тёмная или по системе: настройки → Appearance.</p>
+  <figure class="small"><img src="img/main_oxygen.jpg"><figcaption>Светлая тема Oxygen.</figcaption></figure>
+</section>
+
+<section>
+  <h2><span class="n">11</span>Рецепты</h2>
+  <h3>Пэд, который дышит</h3>
+  <p>Biblically Accurate, Rate <span class="mono">0.3–0.5 Hz</span>, Depth <span class="mono">120%</span>, Mix <span class="mono">60–80%</span>. Колокола медленно проплывают по гармоникам аккорда.</p>
+  <h3>Вокал «из телефона ангела»</h3>
+  <p>Low cut <span class="mono">500–800 Hz</span>, Q <span class="mono">150%</span>, Rate <span class="mono">2–4 Hz</span>, Spread <span class="mono">100%</span>. Добавьте второй слот с Rate <span class="mono">0.2 Hz</span> и Mix <span class="mono">40%</span>.</p>
+  <h3>Моно-совместимо</h3>
+  <p>Spread <span class="mono">0</span>: эффект двигается одинаково в обоих каналах и не пропадает при сведении в моно.</p>
+  <h3>Свой рецепт</h3>
+  <p>Во вкладке Advanced сузьте все Freq from / to к одной октаве (например, <span class="mono">800 Hz – 1.6 kHz</span>) — колокола будут «роиться» в одной зоне, как формантный фильтр.</p>
+</section>
+
+<section>
+  <h2><span class="n">12</span>Вопросы и ответы</h2>
+  <h3>Стало громче или тише</h3>
+  <p>При Depth 200% узкие колокола поднимают отдельные гармоники до <span class="mono">+18 dB</span> (полоса 8 — до <span class="mono">+30 dB</span>), а срез низа убирает басы. Подровняйте Out или уменьшите Depth. Выше 0 dBFS выход не поднимется.</p>
+  <h3>Свистит</h3>
+  <p>Уменьшите Q (ручку) или Depth: узкий подъём на <span class="mono">+18 dB</span> на гармонике звучит как свист — это часть характера рецепта.</p>
+  <h3>В моно эффект пропадает</h3>
+  <p>Каналы обрабатываются по-разному. Сведите Spread ближе к 0.</p>
+  <h3>Есть ли задержка</h3>
+  <p>Нет: фильтры работают без задержки, хосту ничего компенсировать не нужно.</p>
+  <h3>Где другие эффекты</h3>
+  <p>chrōma задумана как rack, эффекты будут добавляться в следующих версиях. Слоты и пресеты из v1 останутся рабочими.</p>
+</section>
+
+</body>
+</html>

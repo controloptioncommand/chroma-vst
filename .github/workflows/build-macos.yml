@@ -1,0 +1,103 @@
+name: Build macOS
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# новая сборка отменяет незаконченную предыдущую, чтобы релиз не перезаписала старая
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Как у Mist, Eido и Talk2Me: Intel-сервер, плагин собирается универсальным (arm64 + x86_64),
+    # тесты и валидаторы проверяют x86_64-часть.
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # вся история и теги — для проверки приватности и релизов
+
+      # Ничего личного в публичный репозиторий: почты, ключи, ссылки на переписку с ИИ
+      - name: Privacy check
+        run: bash scripts/privacy-check.sh
+
+      # У каждой версии должен быть патчноут: docs/releases/<VERSION>.md
+      - name: Release notes check
+        run: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          test -s "docs/releases/$VERSION.md" || { echo "::error::Нет патчноута docs/releases/$VERSION.md"; exit 1; }
+
+      - name: Cache JUCE
+        uses: actions/cache@v4
+        with:
+          path: build/_deps/juce-src
+          key: juce-src-8.0.10-${{ runner.os }}-${{ github.repository }}
+
+      - name: Configure
+        run: cmake -B build -G Xcode -DCHROMA_BUILD_TESTS=ON "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"
+
+      - name: Build plugin (VST3 + AU)
+        run: cmake --build build --config Release --target chroma_VST3 chroma_AU -- -quiet
+
+      - name: Build and run test
+        run: |
+          cmake --build build --config Release --target ChromaTest -- -quiet
+          ./build/ChromaTest_artefacts/Release/ChromaTest "$RUNNER_TEMP/render"
+
+      - name: Ad-hoc sign
+        run: |
+          codesign --force --deep -s - build/chroma_artefacts/Release/VST3/chroma.vst3
+          codesign --force --deep -s - build/chroma_artefacts/Release/AU/chroma.component
+
+      - name: Validate with pluginval
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 8 --validate-in-process \
+            --timeout-ms 600000 build/chroma_artefacts/Release/VST3/chroma.vst3
+
+      - name: Validate AU
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R build/chroma_artefacts/Release/AU/chroma.component ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          auval -v aufx Chrm Prsn
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp -R build/chroma_artefacts/Release/VST3/chroma.vst3 dist/
+          cp -R build/chroma_artefacts/Release/AU/chroma.component dist/
+          cp scripts/install-mac.sh dist/
+          cp docs/chroma-manual.pdf dist/
+          # примеры звучания из теста: сухой сигнал и пресеты
+          mkdir -p dist/demo && cp "$RUNNER_TEMP/render"/demo_*.wav dist/demo/ 2>/dev/null || true
+          cd dist && zip -qry ../chroma-macOS.zip .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chroma-macOS
+          path: chroma-macOS.zip
+
+      # Текущая версия: архив + патчноут. Постоянная ссылка:
+      # https://github.com/controloptioncommand/chroma-vst/releases/latest/download/chroma-macOS.zip
+      - name: Publish release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # имя релиза — из файла VERSION; повторная сборка той же версии обновляет релиз
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          gh release delete "$VERSION" --cleanup-tag -y || true
+          gh release create "$VERSION" chroma-macOS.zip \
+            --target "${{ github.sha }}" \
+            --title "$VERSION" \
+            --notes-file "docs/releases/$VERSION.md" \
+            --latest

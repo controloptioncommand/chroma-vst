@@ -1,0 +1,353 @@
+#include "OphanPanel.h"
+#include "../PluginProcessor.h"
+
+namespace chroma
+{
+using LnF = ChromaLookAndFeel;
+
+namespace
+{
+const char* kColNames[5] = { "Freq from", "Freq to", "Gain from", "Gain to", "Q" };
+constexpr int kCols = 5;
+
+std::atomic<float>& field (OphanBandSettings& b, int col)
+{
+    switch (col)
+    {
+        case 0: return b.fFrom;
+        case 1: return b.fTo;
+        case 2: return b.gFrom;
+        case 3: return b.gTo;
+        default: return b.q;
+    }
+}
+
+float defaultField (int side, int band, int col)
+{
+    const auto d = OphanAdvanced::recipe (side, band);
+    switch (col)
+    {
+        case 0: return d.fFrom;
+        case 1: return d.fTo;
+        case 2: return d.gFrom;
+        case 3: return d.gTo;
+        default: return d.q;
+    }
+}
+} // namespace
+
+// ===========================================================================
+DragValue::DragValue (Kind k, const juce::String& title) : kind (k)
+{
+    setTitle (title);
+    setWantsKeyboardFocus (true);
+    setMouseClickGrabsKeyboardFocus (false);
+}
+
+juce::String DragValue::format (Kind k, float v)
+{
+    switch (k)
+    {
+        case Freq:
+            if (v >= 1000.0f) return juce::String (v / 1000.0f, v >= 9995.0f ? 1 : 2) + " kHz";
+            return juce::String (juce::roundToInt (v)) + " Hz";
+        case Gain:
+        {
+            const auto s = juce::String (std::abs (v), 1);
+            return (v > 0.04f ? "+" : v < -0.04f ? minus() : juce::String()) + s + " dB";
+        }
+        case Q:    return juce::String (v, v < 10.0f ? 2 : 1);
+        case Rate: return juce::String (v, 2) + " Hz";
+    }
+    return {};
+}
+
+juce::String DragValue::text() const { return get ? format (kind, get()) : juce::String(); }
+
+float DragValue::limit (float v) const
+{
+    switch (kind)
+    {
+        case Freq: return juce::jlimit (10.0f, 22000.0f, v);
+        case Gain: return juce::jlimit (-15.0f, 15.0f, v);
+        case Q:    return juce::jlimit (0.3f, 40.0f, v);
+        case Rate: return juce::jlimit (0.01f, 20.0f, v);
+    }
+    return v;
+}
+
+float DragValue::stepped (float v0, float delta) const
+{
+    switch (kind)
+    {
+        case Freq: return limit (v0 * std::pow (2.0f, delta / 40.0f));   // октава на 40 px
+        case Gain: return limit (v0 + delta * 0.1f);
+        case Q:
+        case Rate: return limit (v0 * std::pow (2.0f, delta / 80.0f));
+    }
+    return v0;
+}
+
+void DragValue::paint (juce::Graphics& g)
+{
+    auto r = getLocalBounds().toFloat().reduced (0.5f);
+    g.setColour (Colours::well);
+    g.fillRoundedRectangle (r, 8.0f);
+    g.setColour (isMouseOver (true) ? Colours::ink.withAlpha (0.35f) : Colours::outline);
+    g.drawRoundedRectangle (r, 8.0f, 1.0f);
+    g.setColour (Colours::ink);
+    g.setFont (LnF::mono (LnF::Type::footnote));
+    g.drawText (text(), getLocalBounds().reduced (6, 0), juce::Justification::centred);
+    if (hasKeyboardFocus (false)) LnF::drawFocusRing (g, r.expanded (2.0f), 10.0f);
+    setDescription (getTitle() + " " + text());
+}
+
+void DragValue::mouseDown (const juce::MouseEvent&)
+{
+    if (get) startValue = get();
+    setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
+}
+
+void DragValue::mouseDrag (const juce::MouseEvent& e)
+{
+    if (! set) return;
+    const float k = e.mods.isShiftDown() ? 0.2f : 1.0f;
+    set (stepped (startValue, -(float) e.getDistanceFromDragStartY() * k));
+    repaint();
+}
+
+void DragValue::mouseDoubleClick (const juce::MouseEvent&)
+{
+    if (set && getDefault) set (getDefault());
+    repaint();
+}
+
+bool DragValue::keyPressed (const juce::KeyPress& k)
+{
+    if (! set || ! get) return false;
+    const float step = k.getModifiers().isShiftDown() ? 1.0f : 5.0f;
+    if (k.getKeyCode() == juce::KeyPress::upKey)   { set (stepped (get(), step)); repaint(); return true; }
+    if (k.getKeyCode() == juce::KeyPress::downKey) { set (stepped (get(), -step)); repaint(); return true; }
+    if (k == juce::KeyPress::backspaceKey && getDefault) { set (getDefault()); repaint(); return true; }
+    return false;
+}
+
+// ===========================================================================
+SlotPanel::SlotPanel (ChromaProcessor& p) : proc (p)
+{
+    setTitle ("Slot panel");
+    modeSwitch.setTitle ("Panel view");
+    modeSwitch.setItems ({ { "Macro", 0 }, { "Advanced", 1 } });
+    modeSwitch.onChange = [this] (int) { updateVisibility(); };
+    shapeSwitch.setTitle ("LFO shape");
+    shapeSwitch.setItems ({ { "Sine", 0 }, { "Stray", 1 } });
+    for (juce::Component* c : std::initializer_list<juce::Component*> { &modeSwitch, &shapeSwitch, &rate, &drift, &depth, &q, &spread, &lowCut, &mix,
+                                                                        &onToggle, &status, &driftRate, &resetButton, &addButton })
+        addAndMakeVisible (c);
+    status.setFont (LnF::mono (LnF::Type::footnote));
+    status.getProperties().set ("dim", true);
+    status.setJustificationType (juce::Justification::centredRight);
+
+    resetButton.setTitle ("Reset advanced settings to the recipe");
+    resetButton.onClick = [this] { proc.resetAdvanced (slot); repaint(); };
+    addButton.setButtonText (juce::String ("Add Ophan") + midDot() + effectTagline (EffectType::Ophan));
+    addButton.onClick = [this]
+    {
+        proc.clearSlot (slot);
+        proc.setSlotType (slot, EffectType::Ophan);
+        refresh();
+        if (onSlotChanged) onSlotChanged();
+    };
+
+    driftRate.get = [this] { return adv().driftRate.load(); };
+    driftRate.set = [this] (float v) { adv().driftRate.store (v); };
+    driftRate.getDefault = [] { return 0.35f; };
+
+    buildGrid();
+    attachSlot();
+}
+
+OphanAdvanced& SlotPanel::adv() { return proc.advanced (slot); }
+
+void SlotPanel::buildGrid()
+{
+    for (int side = 0; side < 2; ++side)
+        for (int b = 0; b < OphanRecipe::kBands; ++b)
+            for (int col = 0; col < kCols; ++col)
+            {
+                const auto kind = col < 2 ? DragValue::Freq : col < 4 ? DragValue::Gain : DragValue::Q;
+                auto cell = std::make_unique<DragValue> (kind, juce::String (side == 0 ? "Left" : "Right") + " band " + juce::String (b + 2) + " " + kColNames[col]);
+                cell->get = [this, side, b, col] { return field (adv().band[(size_t) side][(size_t) b], col).load(); };
+                cell->set = [this, side, b, col] (float v) { field (adv().band[(size_t) side][(size_t) b], col).store (v); };
+                cell->getDefault = [side, b, col] { return defaultField (side, b, col); };
+                addChildComponent (*cell);
+                cells.push_back (std::move (cell));
+            }
+}
+
+void SlotPanel::setSlot (int s)
+{
+    s = juce::jlimit (0, kSlots - 1, s);
+    if (s == slot && proc.getSlotType (s) == shownType) return;
+    slot = s;
+    attachSlot();
+}
+
+void SlotPanel::attachSlot()
+{
+    rate.attach (proc.apvts, slotParam (slot, ParamId::rate));
+    drift.attach (proc.apvts, slotParam (slot, ParamId::drift));
+    depth.attach (proc.apvts, slotParam (slot, ParamId::depth));
+    q.attach (proc.apvts, slotParam (slot, ParamId::q));
+    spread.attach (proc.apvts, slotParam (slot, ParamId::spread));
+    lowCut.attach (proc.apvts, slotParam (slot, ParamId::lowCut));
+    mix.attach (proc.apvts, slotParam (slot, ParamId::mix));
+    onToggle.attach (proc.apvts, slotParam (slot, ParamId::on));
+    shapeAtt = std::make_unique<juce::ParameterAttachment> (*proc.apvts.getParameter (slotParam (slot, ParamId::shape)),
+        [this] (float v) { shapeSwitch.setSelectedValue (juce::roundToInt (v)); }, nullptr);
+    shapeSwitch.onChange = [this] (int v) { shapeAtt->setValueAsCompleteGesture ((float) v); };
+    shapeAtt->sendInitialUpdate();
+    refresh();
+}
+
+void SlotPanel::refresh()
+{
+    shownType = proc.getSlotType (slot);
+    updateVisibility();
+    repaint();
+}
+
+void SlotPanel::updateVisibility()
+{
+    advancedMode = modeSwitch.getSelectedValue() == 1;
+    const bool ophan = shownType == EffectType::Ophan;
+    modeSwitch.setVisible (ophan);
+    for (juce::Component* c : std::initializer_list<juce::Component*> { &shapeSwitch, &rate, &drift, &depth, &q, &spread, &lowCut, &mix })
+        c->setVisible (ophan && ! advancedMode);
+    for (auto& c : cells) c->setVisible (ophan && advancedMode);
+    driftRate.setVisible (ophan && advancedMode);
+    resetButton.setVisible (ophan && advancedMode);
+    onToggle.setVisible (ophan);
+    addButton.setVisible (! ophan);
+    repaint();
+}
+
+// ---------------------------------------------------------------------------
+void SlotPanel::resized()
+{
+    auto inner = getLocalBounds().reduced (18, 14);
+    footArea = inner.removeFromBottom (44);
+    headArea = inner.removeFromTop (48);
+    inner.removeFromTop (8);
+    bodyArea = inner;
+    modeSwitch.setBounds (headArea.withTrimmedLeft (headArea.getWidth() - 220).withHeight (30));
+
+    // Macro: форма LFO слева, ручки
+    {
+        auto row = bodyArea.withSizeKeepingCentre (bodyArea.getWidth(), juce::jmin (bodyArea.getHeight(), 100));
+        shapeArea = row.removeFromLeft (180);
+        shapeSwitch.setBounds (shapeArea.withSizeKeepingCentre (164, 30).translated (0, 8));
+        row.removeFromLeft (20);
+        layoutRow (row, { &rate, &drift, &depth, &q, &spread, &lowCut, &mix }, 10);
+    }
+
+    // Advanced: сетка
+    {
+        gridArea = bodyArea;
+        gridRowH = juce::jmin (26, (gridArea.getHeight() - 36) / OphanRecipe::kBands);
+        gridTop = gridArea.getY() + 36;
+        gridCol0 = 54;
+        gridGroupGap = 28;
+        const int gap = 6;
+        gridCellW = (gridArea.getWidth() - gridCol0 - gridGroupGap - gap * (2 * kCols - 1)) / (2 * kCols);
+        for (int side = 0; side < 2; ++side)
+            for (int b = 0; b < OphanRecipe::kBands; ++b)
+                for (int col = 0; col < kCols; ++col)
+                {
+                    const int x = gridArea.getX() + gridCol0 + side * (kCols * (gridCellW + gap) + gridGroupGap - gap) + col * (gridCellW + gap);
+                    const int y = gridTop + b * gridRowH;
+                    cells[(size_t) ((side * OphanRecipe::kBands + b) * kCols + col)]->setBounds (x, y + 2, gridCellW, gridRowH - 4);
+                }
+    }
+
+    auto f = footArea.withTrimmedTop (10);
+    onToggle.setBounds (f.removeFromLeft (84).withSizeKeepingCentre (84, 28));
+    f.removeFromLeft (16);
+    driftRate.setBounds (f.removeFromLeft (84 + 90).withTrimmedLeft (84).withSizeKeepingCentre (90, 24));
+    f.removeFromLeft (12);
+    resetButton.setBounds (f.removeFromLeft (140).withSizeKeepingCentre (140, 28));
+    status.setBounds (f.removeFromRight (300));
+
+    addArea = bodyArea;
+    addButton.setBounds (bodyArea.withSizeKeepingCentre (320, 36));
+}
+
+void SlotPanel::paint (juce::Graphics& g)
+{
+    auto r = getLocalBounds().toFloat();
+    g.setColour (Colours::surface);
+    g.fillRoundedRectangle (r, 12.0f);
+    g.setColour (Colours::outline);
+    g.drawRoundedRectangle (r.reduced (0.5f), 12.0f, 1.0f);
+    g.drawHorizontalLine (footArea.getY(), (float) footArea.getX(), (float) footArea.getRight());
+
+    const int pos = [this] { auto o = proc.getOrder(); for (int k = 0; k < kSlots; ++k) if (o[(size_t) k] == slot) return k; return 0; }();
+    auto ta = headArea.withTrimmedRight (240);
+    g.setColour (Colours::ink);
+    g.setFont (LnF::font (LnF::Type::title3, true));
+    if (shownType == EffectType::Ophan)
+    {
+        g.drawText (juce::String ("Ophan") + midDot() + effectTagline (EffectType::Ophan), ta.removeFromTop (20), juce::Justification::centredLeft);
+        g.setColour (Colours::ink2);
+        g.setFont (LnF::font (LnF::Type::callout));
+        g.drawFittedText ("EQ Eight in L/R mode in one device: a low cut and seven narrow bells per channel. Four LFOs sweep their gains "
+                          "and frequencies, a fifth one drifts the rate.", ta.withTrimmedTop (4), juce::Justification::topLeft, 2, 1.0f);
+    }
+    else
+    {
+        g.drawText ("Slot " + juce::String (pos + 1) + midDot() + "Empty", ta.removeFromTop (20), juce::Justification::centredLeft);
+        g.setColour (Colours::ink2);
+        g.setFont (LnF::font (LnF::Type::callout));
+        g.drawFittedText ("Effects run left to right. Pick an effect for this slot.", ta.withTrimmedTop (4), juce::Justification::topLeft, 2, 1.0f);
+        return;
+    }
+
+    if (! advancedMode)
+    {
+        // подпись формы LFO — как у ручки
+        g.setColour (Colours::ink);
+        g.setFont (LnF::font (LnF::Type::subheadline, true));
+        g.drawText ("Shape", shapeSwitch.getBounds().translated (0, -22).withHeight (16), juce::Justification::centred);
+        return;
+    }
+
+    // шапка сетки: группы Left / Right и названия столбцов
+    const int gap = 6;
+    for (int side = 0; side < 2; ++side)
+    {
+        const int x0 = gridArea.getX() + gridCol0 + side * (kCols * (gridCellW + gap) + gridGroupGap - gap);
+        const int groupW = kCols * gridCellW + (kCols - 1) * gap;
+        auto title = juce::Rectangle<int> (x0, gridArea.getY(), groupW, 16);
+        g.setColour (side == 0 ? Colours::carrier : Colours::modulator);
+        g.fillRoundedRectangle (juce::Rectangle<float> ((float) x0, (float) title.getCentreY() - 1.5f, 14.0f, 3.0f), 1.5f);
+        g.setColour (Colours::ink);
+        g.setFont (LnF::font (LnF::Type::subheadline, true));
+        g.drawText (side == 0 ? "Left" : "Right", title.withTrimmedLeft (20), juce::Justification::centredLeft);
+        g.setColour (Colours::ink2);
+        g.setFont (LnF::font (LnF::Type::footnote));
+        for (int col = 0; col < kCols; ++col)
+            g.drawText (kColNames[col], juce::Rectangle<int> (x0 + col * (gridCellW + gap), gridArea.getY() + 18, gridCellW, 14), juce::Justification::centred);
+    }
+    g.setFont (LnF::font (LnF::Type::footnote));
+    g.setColour (Colours::ink2);
+    g.drawText ("Band", juce::Rectangle<int> (gridArea.getX(), gridArea.getY() + 18, gridCol0 - 8, 14), juce::Justification::centredLeft);
+    g.setFont (LnF::mono (LnF::Type::footnote));
+    g.setColour (Colours::ink);
+    for (int b = 0; b < OphanRecipe::kBands; ++b)
+        g.drawText (juce::String (b + 2), juce::Rectangle<int> (gridArea.getX(), gridTop + b * gridRowH, gridCol0 - 8, gridRowH), juce::Justification::centredLeft);
+    // подпись Drift rate в подвале
+    g.setFont (LnF::font (LnF::Type::callout));
+    g.setColour (Colours::ink);
+    g.drawText ("Drift rate", driftRate.getBounds().withX (driftRate.getX() - 80).withWidth (74), juce::Justification::centredRight);
+}
+} // namespace chroma

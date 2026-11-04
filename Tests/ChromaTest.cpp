@@ -1,0 +1,459 @@
+// Офлайн-тест chrōma: фильтры и LFO, Ophan (не тишина, не NaN, ≤ 0 dBFS, L ≠ R, Spread 0 → моно), обход пустых и выключенных
+// слотов, Mix 0, порядок цепочки, состояние, пресеты, крайние значения, частоты дискретизации, скорость, демо-WAV,
+// скриншоты интерфейса в обеих темах, About.
+#include <juce_audio_utils/juce_audio_utils.h>
+#include "PluginProcessor.h"
+#include "PluginEditor.h"
+
+using namespace chroma;
+
+static int failures = 0;
+#define CHECK(cond, msg) do { if (! (cond)) { ++failures; std::cout << "  FAIL: " << msg << "\n"; } } while (0)
+
+namespace
+{
+constexpr int kBlock = 256;
+
+void setParam (ChromaProcessor& p, const juce::String& id, float value)
+{
+    auto* prm = p.apvts.getParameter (id);
+    prm->setValueNotifyingHost (prm->convertTo0to1 (value));
+}
+
+// тестовый сигнал: аккорд из пил (стерео-одинаковый) + шум; level — пик примерно
+juce::AudioBuffer<float> testSignal (double sr, double seconds, float level = 0.25f, bool sameLR = true)
+{
+    const int n = (int) (seconds * sr);
+    juce::AudioBuffer<float> b (2, n);
+    juce::Random rng (7);
+    const double fs[] = { 110.0, 164.8, 220.0, 277.2, 329.6 };
+    double ph[5] {};
+    float lp = 0;
+    for (int i = 0; i < n; ++i)
+    {
+        float v = 0;
+        for (int k = 0; k < 5; ++k)
+        {
+            ph[k] += fs[k] / sr;
+            ph[k] -= std::floor (ph[k]);
+            v += (float) (2.0 * ph[k] - 1.0) * 0.18f;
+        }
+        lp += 0.2f * ((rng.nextFloat() * 2.0f - 1.0f) - lp);
+        v += lp * 0.25f;
+        b.setSample (0, i, v * level / 0.8f);
+        b.setSample (1, i, sameLR ? v * level / 0.8f : (v * 0.7f + lp * 0.3f) * level / 0.8f);
+    }
+    return b;
+}
+
+// «музыкальный» сигнал для демо: аккорды пилами с фильтром + хэт
+juce::AudioBuffer<float> demoSignal (double sr, double seconds)
+{
+    const int n = (int) (seconds * sr);
+    juce::AudioBuffer<float> b (2, n);
+    juce::Random rng (3);
+    const int chords[4][4] = { { 45, 57, 60, 64 }, { 41, 57, 60, 65 }, { 43, 55, 59, 62 }, { 40, 55, 59, 64 } };
+    double ph[2][4] {};
+    float z[2] {};
+    for (int i = 0; i < n; ++i)
+    {
+        const double t = (double) i / sr;
+        const int c = (int) (t / 2.0) % 4;
+        float v[2] {};
+        for (int ch = 0; ch < 2; ++ch)
+            for (int k = 0; k < 4; ++k)
+            {
+                const double f = 440.0 * std::pow (2.0, (chords[c][k] - 69) / 12.0) * (ch == 0 ? 1.0 : 1.003);
+                ph[ch][k] += f / sr;
+                ph[ch][k] -= std::floor (ph[ch][k]);
+                v[ch] += (float) (2.0 * ph[ch][k] - 1.0) * 0.13f;
+            }
+        const double beat = std::fmod (t, 0.25);
+        const float hat = (rng.nextFloat() * 2.0f - 1.0f) * (float) std::exp (-beat * 60.0) * 0.12f;
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            z[ch] += 0.12f * (v[ch] - z[ch]);
+            b.setSample (ch, i, z[ch] * 0.9f + hat);
+        }
+    }
+    return b;
+}
+
+juce::AudioBuffer<float> run (ChromaProcessor& p, const juce::AudioBuffer<float>& in, ChromaEditor* ed = nullptr)
+{
+    juce::AudioBuffer<float> out (in);
+    juce::MidiBuffer midi;
+    const int total = out.getNumSamples();
+    for (int pos = 0; pos < total; pos += kBlock)
+    {
+        const int n = juce::jmin (kBlock, total - pos);
+        juce::AudioBuffer<float> view (out.getArrayOfWritePointers(), out.getNumChannels(), pos, n);
+        p.processBlock (view, midi);
+        if (ed != nullptr && (pos / kBlock) % 6 == 0) ed->pumpForTest();
+    }
+    return out;
+}
+
+struct Stats { float peak = 0, rms = 0; bool nan = false; };
+Stats stats (const juce::AudioBuffer<float>& b)
+{
+    Stats s;
+    double sum = 0;
+    for (int c = 0; c < b.getNumChannels(); ++c)
+        for (int i = 0; i < b.getNumSamples(); ++i)
+        {
+            const float v = b.getSample (c, i);
+            if (! std::isfinite (v)) { s.nan = true; continue; }
+            s.peak = juce::jmax (s.peak, std::abs (v));
+            sum += (double) v * v;
+        }
+    s.rms = (float) std::sqrt (sum / juce::jmax (1, b.getNumChannels() * b.getNumSamples()));
+    return s;
+}
+
+float maxDiff (const juce::AudioBuffer<float>& a, const juce::AudioBuffer<float>& b, int chA = -1)
+{
+    float d = 0;
+    for (int c = 0; c < a.getNumChannels(); ++c)
+        for (int i = 0; i < a.getNumSamples(); ++i)
+            d = juce::jmax (d, std::abs (a.getSample (c, i) - b.getSample (chA >= 0 ? chA : c, i)));
+    return d;
+}
+
+float correlation (const juce::AudioBuffer<float>& b)
+{
+    double xy = 0, xx = 0, yy = 0;
+    for (int i = 0; i < b.getNumSamples(); ++i)
+    {
+        const double x = b.getSample (0, i), y = b.getSample (1, i);
+        xy += x * y; xx += x * x; yy += y * y;
+    }
+    return (float) (xy / std::sqrt (juce::jmax (1e-12, xx * yy)));
+}
+
+void writeWav (const juce::File& f, const juce::AudioBuffer<float>& b, double sr)
+{
+    f.deleteFile();
+    juce::WavAudioFormat wav;
+    std::unique_ptr<juce::OutputStream> os = std::make_unique<juce::FileOutputStream> (f);
+    if (auto w = wav.createWriterFor (os, juce::AudioFormatWriterOptions{}.withSampleRate (sr).withNumChannels (2).withBitsPerSample (24)))
+        w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+    std::cout << "  wrote " << f.getFileName() << "\n";
+}
+
+void checkAudio (const juce::AudioBuffer<float>& b, const juce::String& what)
+{
+    const auto s = stats (b);
+    CHECK (! s.nan, what << ": NaN");
+    CHECK (s.peak <= 1.0f, what << ": peak above 0 dBFS (" << s.peak << ")");
+    CHECK (s.rms > 0.003f, what << ": silent (rms " << s.rms << ")");
+}
+
+float sineGain (const SvfCoefs& c, double f, double sr)
+{
+    Svf s;
+    s.a1 = c.a1; s.a2 = c.a2; s.a3 = c.a3; s.m0 = c.m0; s.m1 = c.m1; s.m2 = c.m2;
+    const int n = (int) sr;
+    double inE = 0, outE = 0;
+    for (int i = 0; i < n; ++i)
+    {
+        const float x = (float) std::sin (2.0 * 3.141592653589793 * f * i / sr);
+        const float y = s.tick (x);
+        if (i > n / 2) { inE += x * x; outE += y * y; }
+    }
+    return (float) std::sqrt (outE / inE);
+}
+} // namespace
+
+int main (int argc, char** argv)
+{
+    juce::ScopedJuceInitialiser_GUI gui;
+    const juce::File outDir = argc > 1 ? juce::File::getCurrentWorkingDirectory().getChildFile (argv[1])
+                                       : juce::File::getCurrentWorkingDirectory().getChildFile ("render");
+    outDir.createDirectory();
+
+    // ---------------------------------------------------------------- фильтры и LFO
+    std::cout << "filters\n";
+    {
+        const double sr = 48000.0;
+        const float g12 = sineGain (SvfCoefs::bell (1000.0, 4.0, 12.0, sr), 1000.0, sr);
+        CHECK (std::abs (juce::Decibels::gainToDecibels (g12) - 12.0f) < 0.2f, "bell +12 dB at centre: " << juce::Decibels::gainToDecibels (g12));
+        const float gCut = sineGain (SvfCoefs::bell (2000.0, 10.0, -18.0, sr), 2000.0, sr);
+        CHECK (std::abs (juce::Decibels::gainToDecibels (gCut) + 18.0f) < 0.3f, "bell −18 dB at centre: " << juce::Decibels::gainToDecibels (gCut));
+        const float gFar = sineGain (SvfCoefs::bell (2000.0, 10.0, -18.0, sr), 200.0, sr);
+        CHECK (std::abs (juce::Decibels::gainToDecibels (gFar)) < 0.2f, "narrow bell leaves far frequencies: " << juce::Decibels::gainToDecibels (gFar));
+        const float hpLow = sineGain (SvfCoefs::highpass (225.0, 0.71, sr), 56.0, sr);
+        const float hpHigh = sineGain (SvfCoefs::highpass (225.0, 0.71, sr), 2000.0, sr);
+        CHECK (juce::Decibels::gainToDecibels (hpLow) < -20.0f && std::abs (juce::Decibels::gainToDecibels (hpHigh)) < 0.2f,
+               "low cut 225 Hz: " << juce::Decibels::gainToDecibels (hpLow) << " / " << juce::Decibels::gainToDecibels (hpHigh));
+        // частоты рецепта: шкала EQ Eight 10 Гц … 22 кГц
+        CHECK (std::abs (OphanRecipe::eqFreq (40) - 217.0) < 2.0 && std::abs (OphanRecipe::eqFreq (100) - 22000.0) < 1.0, "EQ Eight frequency scale");
+        CHECK (std::abs (OphanRecipe::eqGain (20) + 9.0) < 1e-6 && std::abs (OphanRecipe::eqGain (80) - 9.0) < 1e-6, "EQ Eight gain scale");
+
+        for (int shape : { 0, 1 })
+        {
+            Lfo l;
+            l.reset (5, 0.0);
+            double mn = 9, mx = -9, prev = 0, maxStep = 0;
+            for (int i = 0; i < 48000 * 20 / 32; ++i)
+            {
+                const double v = l.advance (1.0, 32.0 / 48000.0, (Lfo::Shape) shape);
+                mn = std::min (mn, v); mx = std::max (mx, v);
+                if (i > 0) maxStep = std::max (maxStep, std::abs (v - prev));
+                prev = v;
+            }
+            CHECK (mn >= -1.0001 && mx <= 1.0001 && mx - mn > 1.2, "LFO " << shape << " range " << mn << "…" << mx);
+            CHECK (maxStep < 0.05, "LFO " << shape << " is not smooth (step " << maxStep << ")");
+        }
+    }
+
+    // ---------------------------------------------------------------- Ophan
+    std::cout << "ophan\n";
+    for (double sr : { 44100.0, 48000.0, 96000.0 })
+    {
+        ChromaProcessor p;
+        p.prepareToPlay (sr, kBlock);
+        p.presets.loadFactory (0);   // Biblically Accurate
+        CHECK (p.getSlotType (0) == EffectType::Ophan && p.getSlotType (1) == EffectType::Empty, "default rack: Ophan + empty slots");
+        const auto in = testSignal (sr, 6.0);
+        auto out = run (p, in);
+        checkAudio (out, "ophan @" + juce::String (sr));
+        const float corr = correlation (out);
+        CHECK (corr < 0.98f, "L and R must differ (correlation " << corr << ")");
+        CHECK (maxDiff (out, in) > 0.01f, "ophan changes the sound");
+        std::cout << "  " << sr << " Hz: peak " << juce::String (stats (out).peak, 3) << ", corr " << juce::String (corr, 3) << "\n";
+    }
+    {
+        // Spread 0: правый канал повторяет левый
+        ChromaProcessor p;
+        p.prepareToPlay (48000.0, kBlock);
+        setParam (p, slotParam (0, ParamId::spread), 0.0f);
+        auto out = run (p, testSignal (48000.0, 3.0));
+        float d = 0;
+        for (int i = 0; i < out.getNumSamples(); ++i) d = juce::jmax (d, std::abs (out.getSample (0, i) - out.getSample (1, i)));
+        CHECK (d < 1e-4f, "spread 0 → mono (diff " << d << ")");
+        // Depth 0 и низкий Low cut: почти без изменений
+        setParam (p, slotParam (0, ParamId::spread), 100.0f);
+        setParam (p, slotParam (0, ParamId::depth), 0.0f);
+        setParam (p, slotParam (0, ParamId::lowCut), 10.0f);
+        const auto in = testSignal (48000.0, 2.0);
+        auto flat = run (p, in);
+        juce::AudioBuffer<float> tail (2, 48000);
+        juce::AudioBuffer<float> tailIn (2, 48000);
+        for (int c = 0; c < 2; ++c) { tail.copyFrom (c, 0, flat, c, 48000, 48000); tailIn.copyFrom (c, 0, in, c, 48000, 48000); }
+        const float r = stats (tail).rms / stats (tailIn).rms;
+        CHECK (std::abs (juce::Decibels::gainToDecibels (r)) < 0.5f, "depth 0 is nearly flat (" << juce::Decibels::gainToDecibels (r) << " dB)");
+        // Mix 0 — сигнал без изменений
+        setParam (p, slotParam (0, ParamId::depth), 200.0f);
+        setParam (p, slotParam (0, ParamId::mix), 0.0f);
+        run (p, testSignal (48000.0, 0.5));   // сглаживание Mix (≈ 30 мс)
+        const auto in2 = testSignal (48000.0, 1.0);
+        auto dry = run (p, in2);
+        CHECK (maxDiff (dry, in2) < 1e-5f, "mix 0 → dry (diff " << maxDiff (dry, in2) << ")");
+    }
+    {
+        // пустой и выключенный слот — бит-в-бит
+        ChromaProcessor p;
+        p.prepareToPlay (48000.0, kBlock);
+        const auto in = testSignal (48000.0, 1.0);
+        setParam (p, slotParam (0, ParamId::on), 0.0f);
+        CHECK (maxDiff (run (p, in), in) == 0.0f, "slot off → bit-exact passthrough");
+        setParam (p, slotParam (0, ParamId::on), 1.0f);
+        p.setSlotType (0, EffectType::Empty);
+        CHECK (maxDiff (run (p, in), in) == 0.0f, "empty rack → bit-exact passthrough");
+    }
+    {
+        // крайние значения и громкий вход: лимитер держит 0 dBFS
+        ChromaProcessor p;
+        p.prepareToPlay (48000.0, 64);
+        for (auto [id, v] : std::initializer_list<std::pair<const char*, float>> {
+                 { ParamId::rate, 12.0f }, { ParamId::drift, 100.0f }, { ParamId::depth, 200.0f }, { ParamId::q, 400.0f }, { ParamId::lowCut, 10.0f } })
+            setParam (p, slotParam (0, id), v);
+        for (int s = 1; s < kSlots; ++s) { p.setSlotType (s, EffectType::Ophan); setParam (p, slotParam (s, ParamId::q), 25.0f); setParam (p, slotParam (s, ParamId::rate), 0.02f); }
+        auto out = run (p, testSignal (48000.0, 4.0, 0.95f, false));
+        checkAudio (out, "extremes, 4 slots, loud input");
+        setParam (p, slotParam (0, ParamId::lowCut), 2000.0f);
+        setParam (p, slotParam (0, ParamId::shape), 0.0f);
+        checkAudio (run (p, testSignal (48000.0, 2.0, 0.95f, false)), "extremes 2");
+        // моно-раскладка
+        ChromaProcessor m;
+        juce::AudioProcessor::BusesLayout mono;
+        mono.inputBuses.add (juce::AudioChannelSet::mono());
+        mono.outputBuses.add (juce::AudioChannelSet::mono());
+        CHECK (m.setBusesLayout (mono), "mono layout supported");
+        m.prepareToPlay (48000.0, kBlock);
+        auto in = testSignal (48000.0, 2.0);
+        juce::AudioBuffer<float> one (1, in.getNumSamples());
+        one.copyFrom (0, 0, in, 0, 0, in.getNumSamples());
+        auto mo = run (m, one);
+        const auto ms = stats (mo);
+        CHECK (! ms.nan && ms.peak <= 1.0f && ms.rms > 0.003f, "mono processing");
+    }
+
+    // ---------------------------------------------------------------- порядок, копия, состояние
+    std::cout << "rack and state\n";
+    {
+        ChromaProcessor p;
+        p.prepareToPlay (48000.0, kBlock);
+        p.presets.loadFactory (7);   // Wheels Within Wheels: два слота
+        CHECK (p.getSlotType (0) == EffectType::Ophan && p.getSlotType (1) == EffectType::Ophan, "two-slot preset");
+        p.moveSlot (0, 3);
+        auto o = p.getOrder();
+        CHECK (o[0] == 1 && o[1] == 2 && o[2] == 3 && o[3] == 0, "moveSlot 0 → 3");
+        p.advanced (1).band[1][3].q = 3.5f;
+        p.advanced (1).band[0][6].fTo = 777.0f;
+        p.advanced (2).driftRate = 1.25f;
+        setParam (p, slotParam (1, ParamId::rate), 2.5f);
+        juce::MemoryBlock mb;
+        p.getStateInformation (mb);
+
+        ChromaProcessor q;
+        q.setStateInformation (mb.getData(), (int) mb.getSize());
+        o = q.getOrder();
+        CHECK (o[0] == 1 && o[3] == 0, "order restored");
+        CHECK (std::abs (q.advanced (1).band[1][3].q.load() - 3.5f) < 1e-4f, "advanced Q restored");
+        CHECK (std::abs (q.advanced (1).band[0][6].fTo.load() - 777.0f) < 1e-3f, "advanced freq restored");
+        CHECK (std::abs (q.advanced (2).driftRate.load() - 1.25f) < 1e-4f, "drift rate restored");
+        CHECK (std::abs (q.apvts.getRawParameterValue (slotParam (1, ParamId::rate))->load() - 2.5f) < 0.01f, "slot param restored");
+        CHECK (q.presets.getCurrentName() == "Wheels Within Wheels", "preset name restored");
+
+        // копия слота
+        q.copySlot (1, 3);
+        CHECK (q.getSlotType (3) == EffectType::Ophan && std::abs (q.advanced (3).band[1][3].q.load() - 3.5f) < 1e-4f, "copySlot copies advanced");
+        q.clearSlot (3);
+        CHECK (q.getSlotType (3) == EffectType::Empty && std::abs (q.advanced (3).band[1][3].q.load() - OphanAdvanced::recipe (1, 3).q) < 1e-4f, "clearSlot");
+        // фабричный пресет сбрасывает порядок и расширенные настройки
+        q.presets.loadFactory (0);
+        o = q.getOrder();
+        CHECK (o[0] == 0 && o[1] == 1 && o[2] == 2 && o[3] == 3, "factory preset resets order");
+        CHECK (std::abs (q.advanced (1).band[1][3].q.load() - OphanAdvanced::recipe (1, 3).q) < 1e-4f, "factory preset resets advanced");
+        // порядок меняет звук (два разных Ophan подряд не коммутируют из-за лимитера/модуляции — проверяем просто, что не тишина)
+        checkAudio (run (q, testSignal (48000.0, 1.0)), "after state round trip");
+    }
+
+    // ---------------------------------------------------------------- пресеты
+    std::cout << "presets\n";
+    {
+        ChromaProcessor p;
+        p.prepareToPlay (48000.0, kBlock);
+        for (int i = 0; i < p.presets.getNumFactory(); ++i)
+        {
+            p.presets.loadFactory (i);
+            auto out = run (p, testSignal (48000.0, 3.0));
+            checkAudio (out, juce::String ("preset ") + factoryPresets()[(size_t) i].name);
+        }
+        std::cout << "  " << p.presets.getNumFactory() << " presets\n";
+    }
+
+    // ---------------------------------------------------------------- скорость
+    std::cout << "speed\n";
+    {
+        ChromaProcessor p;
+        p.prepareToPlay (48000.0, kBlock);
+        for (int s = 0; s < kSlots; ++s) p.setSlotType (s, EffectType::Ophan);
+        const auto in = testSignal (48000.0, 10.0);
+        const auto t0 = juce::Time::getMillisecondCounterHiRes();
+        auto out = run (p, in);
+        const double ms = juce::Time::getMillisecondCounterHiRes() - t0;
+        std::cout << "  4 x Ophan, 10 s stereo in " << juce::String (ms, 0) << " ms (" << juce::String (10000.0 / ms, 1) << "x realtime)\n";
+        CHECK (ms < 2000.0, "too slow");
+        checkAudio (out, "speed");
+    }
+
+    // ---------------------------------------------------------------- демо WAV
+    std::cout << "demo\n";
+    {
+        const double sr = 48000.0;
+        const auto in = demoSignal (sr, 16.0);
+        writeWav (outDir.getChildFile ("demo_00_dry.wav"), in, sr);
+        ChromaProcessor p;
+        p.prepareToPlay (sr, kBlock);
+        int k = 1;
+        for (auto* nm : { "Biblically Accurate", "Gentle Halo", "Wheels Within Wheels", "Glossolalia" })
+            for (int i = 0; i < p.presets.getNumFactory(); ++i)
+                if (juce::String (factoryPresets()[(size_t) i].name) == nm)
+                {
+                    p.presets.loadFactory (i);
+                    p.prepareToPlay (sr, kBlock);
+                    auto out = run (p, in);
+                    writeWav (outDir.getChildFile ("demo_0" + juce::String (k++) + "_" + juce::String (nm).replace (" ", "_").toLowerCase() + ".wav"), out, sr);
+                }
+    }
+
+    // ---------------------------------------------------------------- интерфейс
+    std::cout << "ui\n";
+    {
+        ChromaProcessor p;
+        p.prepareToPlay (48000.0, kBlock);
+        std::unique_ptr<juce::AudioProcessorEditor> base (p.createEditor());
+        auto* ed = dynamic_cast<ChromaEditor*> (base.get());
+        CHECK (ed != nullptr, "editor");
+        ed->setSize (ChromaEditor::kBaseW, ChromaEditor::kBaseH);
+        const auto music = demoSignal (48000.0, 1.6);
+
+        auto shoot = [&] (const juce::String& name)
+        {
+            ed->pumpForTest();
+            auto img = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.0f);
+            auto f = outDir.getChildFile (name + ".png");
+            f.deleteFile();
+            juce::FileOutputStream fos (f);
+            juce::PNGImageFormat().writeImageToStream (img, fos);
+            std::cout << "  wrote " << f.getFileName() << "\n";
+        };
+
+        for (auto theme : { ThemeId::Oxygen, ThemeId::Rubber })
+        {
+            const juce::String tn = theme == ThemeId::Oxygen ? "oxygen" : "rubber";
+            ed->setThemeForTest (theme);
+
+            p.presets.loadFactory (7);   // два слота
+            ed->selectSlotForTest (0);
+            ed->setAdvancedForTest (false);
+            ed->setViewForTest (0);
+            run (p, music, ed);
+            shoot ("ui_" + tn + "_macro");
+
+            ed->setAdvancedForTest (true);
+            run (p, demoSignal (48000.0, 0.4), ed);
+            shoot ("ui_" + tn + "_advanced");
+            ed->setAdvancedForTest (false);
+
+            ed->setViewForTest (1);
+            run (p, music, ed);
+            shoot ("ui_" + tn + "_scope");
+            ed->setViewForTest (0);
+
+            ed->selectSlotForTest (2);
+            run (p, demoSignal (48000.0, 0.4), ed);
+            shoot ("ui_" + tn + "_empty");
+            ed->selectSlotForTest (0);
+
+            ed->showAboutForTest (true, false);
+            shoot ("about_" + tn);
+            {
+                auto& fog = ed->getAboutForTest().getFogForTest();
+                std::cout << "  fog particles: " << fog.getNumParticles() << "\n";
+                CHECK (fog.getNumParticles() > 100, "fog: too few particles");
+                const auto c = fog.getLocalBounds().getCentre().toFloat();
+                fog.blowForTest ({ c.x - 160.0f, c.y }, { c.x + 40.0f, c.y + 10.0f }, 12);
+                CHECK (fog.isAnimating(), "fog: did not start");
+                fog.stepForTest (90);
+                CHECK (! fog.isAnimating(), "fog: did not settle");
+            }
+            ed->showAboutForTest (true, true);
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (300);
+            shoot ("game_" + tn);
+            auto& about = ed->getAboutForTest();
+            about.keyPressed (juce::KeyPress (juce::KeyPress::escapeKey));
+            CHECK (about.isVisible(), "escape in game closes only the game");
+            about.keyPressed (juce::KeyPress (juce::KeyPress::escapeKey));
+            CHECK (! about.isVisible(), "escape closes About");
+        }
+        ed->setThemeForTest (ThemeId::Oxygen);
+        base.reset();
+    }
+
+    std::cout << (failures == 0 ? "ALL OK\n" : juce::String (failures) + " FAILURE(S)\n");
+    return failures == 0 ? 0 : 1;
+}
