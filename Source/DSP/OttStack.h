@@ -27,6 +27,12 @@ namespace OttRecipe
     // ниже этого уровня ступень плавно перестаёт поднимать полосу (и вверх, и подъёмом полосы):
     // иначе 40 ступеней по +10 дБ раздувают шум и хвосты до громкости музыки
     inline constexpr double kUpFloor = -84.0, kUpFull = -66.0;
+    // Click guard: быстрый детектор (атака ~1 мс, восстановление — как у полосы). Когда он выше обычной огибающей
+    // больше чем на kGuardMargin, усиление считается по нему: на резком нарастании (нота после тишины)
+    // ступень не успевает «поднять тихое» и не даёт всплеска. В установившемся звуке разница меньше — рецепт не меняется.
+    // И порог тишины движется плавно (kGuardGateMs): после паузы ступень не включает
+    // полный подъём тихого (до +29 дБ) на первых, ещё тихих миллисекундах ноты.
+    inline constexpr double kGuardAttackMs = 1.0, kGuardMargin = 6.0, kGuardGateMs = 50.0;
 }
 
 struct OttParams
@@ -38,6 +44,7 @@ struct OttParams
     float downward = 1.0f;   // доля сжатия вниз, 0…1
     float outputDb = 0.0f;   // громкость после всей стопки
     float mix = 1.0f;
+    bool guard = false;      // Click guard
 };
 
 // Для интерфейса: работа каждой ступени по полосам (дБ: + — подъём снизу, − — сжатие сверху)
@@ -73,6 +80,8 @@ private:
     {
         Channel ch[2];
         float env[OttRecipe::kBands] {};           // огибающая (линейная, пик)
+        float fast[OttRecipe::kBands] {};          // быстрый детектор для Click guard
+        float gate[OttRecipe::kBands] {};          // открытие порога тишины для Click guard (0…1)
         float gain[OttRecipe::kBands] {};          // текущее усиление (линейное)
         float gainStep[OttRecipe::kBands] {};
         float shownDb[OttRecipe::kBands] {};
@@ -81,14 +90,15 @@ private:
     };
 
     void control (const OttParams& p, int len);
-    void runStage (Stage& s, float* xl, float* xr, int len, float w, double* peak);
+    template <bool Guard> void runStage (Stage& s, float* xl, float* xr, int len, float w, double* peak);
     void configure (Stage& s);
 
     double sr = 48000.0;
     std::array<Stage, OttRecipe::kMaxStages> stages;
     SvfCoefs cHiA, cHiLp, cHiHp, cLoA, cLoLp, cLoHp, cAp;
     float kBw = 1.41421356f;
-    float att[OttRecipe::kBands] {}, rel[OttRecipe::kBands] {};
+    float att[OttRecipe::kBands] {}, rel[OttRecipe::kBands] {}, attFast = 0.0f;
+    bool guardOn = false;
     double countNow = 8.0, outNow = 1.0, mixNow = 1.0, timeNow = 1.0;
     double outLevel[OttRecipe::kBands] {};
     bool first = true;

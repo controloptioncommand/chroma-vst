@@ -142,11 +142,12 @@ SlotPanel::SlotPanel (ChromaProcessor& p) : proc (p)
     shapeSwitch.setTitle ("LFO shape");
     shapeSwitch.setItems ({ { "Sine", 0 }, { "Stray", 1 } });
     for (juce::Component* c : std::initializer_list<juce::Component*> { &modeSwitch, &shapeSwitch, &rate, &drift, &depth, &q, &spread, &lowCut, &mix,
-                                                                        &onToggle, &status, &driftRate, &resetButton, &addOphan, &addOtt,
+                                                                        &onToggle, &guardToggle, &status, &driftRate, &resetButton, &addOphan, &addOtt,
                                                                         &count, &ottDepth, &time, &upward, &downward, &trim,
                                                                         &prevPreset, &presetName, &nextPreset })
         addAndMakeVisible (c);
     presetName.setTitle ("Effect preset");
+    guardToggle.setDescription ("Stops the burst at the start of a note after silence. Off: the stack pops at note starts, like OTT does.");
     presetName.onClick = [this] { showPresetMenu(); };
     prevPreset.onClick = [this] { proc.stepEffectPreset (slot, -1); updatePresetName(); repaint(); };
     nextPreset.onClick = [this] { proc.stepEffectPreset (slot, 1); updatePresetName(); repaint(); };
@@ -294,6 +295,7 @@ void SlotPanel::attachSlot()
     lowCut.attach (proc.apvts, slotParam (slot, ParamId::lowCut));
     mix.attach (proc.apvts, slotParam (slot, ParamId::mix));
     onToggle.attach (proc.apvts, slotParam (slot, ParamId::on));
+    guardToggle.attach (proc.apvts, slotParam (slot, ParamId::guard));
     count.attach (proc.apvts, slotParam (slot, ParamId::count));
     ottDepth.attach (proc.apvts, slotParam (slot, ParamId::ottDepth));
     time.attach (proc.apvts, slotParam (slot, ParamId::time));
@@ -333,6 +335,7 @@ void SlotPanel::updateVisibility()
     driftRate.setVisible (ophan && advancedMode);
     resetButton.setVisible (ophan && advancedMode);
     onToggle.setVisible (! empty);
+    guardToggle.setVisible (ottType);
     addOphan.setVisible (empty);
     addOtt.setVisible (empty);
     layoutBody();
@@ -373,6 +376,7 @@ void SlotPanel::resized()
 
     auto f = footArea.withTrimmedTop (10);
     onToggle.setBounds (f.removeFromLeft (84).withSizeKeepingCentre (84, 28));
+    guardToggle.setBounds (f.withWidth (140).withX (onToggle.getRight() + 16).withSizeKeepingCentre (140, 28));
     f.removeFromLeft (16);
     driftRate.setBounds (f.removeFromLeft (84 + 90).withTrimmedLeft (84).withSizeKeepingCentre (90, 24));
     f.removeFromLeft (12);

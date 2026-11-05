@@ -104,6 +104,7 @@ ChromaProcessor::ChromaProcessor()
         p.shape = get (ParamId::shape);
         p.count = get (ParamId::count); p.ottDepth = get (ParamId::ottDepth); p.time = get (ParamId::time);
         p.upward = get (ParamId::upward); p.downward = get (ParamId::downward); p.trim = get (ParamId::trim);
+        p.guard = get (ParamId::guard);
         ott[(size_t) s].prepare (sr);
         adv[(size_t) s].resetToRecipe();
         ophan[(size_t) s].prepare (sr, (uint32_t) (s + 1));
@@ -192,7 +193,7 @@ void ChromaProcessor::moveSlot (int fromPos, int toPos)
 void ChromaProcessor::clearSlot (int slot)
 {
     for (auto* id : { ParamId::on, ParamId::mix, ParamId::rate, ParamId::drift, ParamId::depth, ParamId::q, ParamId::spread, ParamId::lowCut, ParamId::shape,
-                     ParamId::count, ParamId::ottDepth, ParamId::time, ParamId::upward, ParamId::downward, ParamId::trim })
+                     ParamId::count, ParamId::ottDepth, ParamId::time, ParamId::upward, ParamId::downward, ParamId::trim, ParamId::guard })
         if (auto* p = apvts.getParameter (slotParam (slot, id))) p->setValueNotifyingHost (p->getDefaultValue());
     setSlotType (slot, EffectType::Empty);
     setEffectPresetName (slot, {});
@@ -203,7 +204,7 @@ void ChromaProcessor::copySlot (int from, int to)
 {
     if (from == to) return;
     for (auto* id : { ParamId::type, ParamId::on, ParamId::mix, ParamId::rate, ParamId::drift, ParamId::depth, ParamId::q, ParamId::spread, ParamId::lowCut, ParamId::shape,
-                     ParamId::count, ParamId::ottDepth, ParamId::time, ParamId::upward, ParamId::downward, ParamId::trim })
+                     ParamId::count, ParamId::ottDepth, ParamId::time, ParamId::upward, ParamId::downward, ParamId::trim, ParamId::guard })
         if (auto* src = apvts.getParameter (slotParam (from, id)))
             if (auto* dst = apvts.getParameter (slotParam (to, id))) dst->setValueNotifyingHost (src->getValue());
     auto& a = adv[(size_t) from];
@@ -430,6 +431,7 @@ void ChromaProcessor::runSlot (int s, float* L, float* R, int n)
         tp.upward = p.upward->load() / 100.0f;
         tp.downward = p.downward->load() / 100.0f;
         tp.outputDb = p.trim->load();
+        tp.guard = p.guard->load() > 0.5f;
         tp.mix = p.mix->load() / 100.0f;
         ott[(size_t) s].process (L, R, n, tp, on ? &ottViews[(size_t) s] : nullptr);
     }

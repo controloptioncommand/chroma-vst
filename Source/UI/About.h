@@ -6,7 +6,7 @@ namespace chroma
 // Версия и дата — показываются на странице About
 namespace AboutInfo
 {
-    inline const char* version = "v2.02";
+    inline const char* version = "v2.03";
     inline const char* repoUrl = "https://github.com/controloptioncommand/chroma-vst";
     inline const char* authorUrl = "https://t.me/nothiingnothingnothing";
     inline const char* date = "5th November 2026";

@@ -105,7 +105,7 @@ private:
     {
         std::atomic<float>* type = nullptr, * on = nullptr, * mix = nullptr, * rate = nullptr, * drift = nullptr, * depth = nullptr,
                           * q = nullptr, * spread = nullptr, * lowCut = nullptr, * shape = nullptr,
-                          * count = nullptr, * ottDepth = nullptr, * time = nullptr, * upward = nullptr, * downward = nullptr, * trim = nullptr;
+                          * count = nullptr, * ottDepth = nullptr, * time = nullptr, * upward = nullptr, * downward = nullptr, * trim = nullptr, * guard = nullptr;
     };
     std::array<SlotParams, kSlots> sp;
     std::atomic<float>* outParam = nullptr;

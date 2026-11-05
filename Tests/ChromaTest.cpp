@@ -416,6 +416,58 @@ int main (int argc, char** argv)
         }
     }
 
+    // ---------------------------------------------------------------- OTT: Click guard
+    std::cout << "ott click guard\n";
+    {
+        // синус с мягкой атакой после тишины: без защиты — всплеск в начале ноты, с защитой — не выше входа
+        const double sr = 48000.0;
+        const int n = (int) (sr * 4.0), on = (int) (sr * 3.0);
+        juce::AudioBuffer<float> note (2, n);
+        for (int i = 0; i < n; ++i)
+        {
+            const float env = i < on ? 0.0f : juce::jmin (1.0f, (float) (i - on) / (float) (0.01 * sr));
+            const float v = 0.3f * env * (float) std::sin (2.0 * 3.141592653589793 * 220.0 * i / sr);
+            note.setSample (0, i, v);
+            note.setSample (1, i, v);
+        }
+        auto onsetPeak = [&] (bool guard, int count)
+        {
+            ChromaProcessor p;
+            p.presets.loadFactory (0);
+            p.setSlotType (0, EffectType::OttStack);
+            setParam (p, slotParam (0, ParamId::count), (float) count);
+            setParam (p, slotParam (0, ParamId::trim), 0.0f);
+            setParam (p, slotParam (0, ParamId::guard), guard ? 1.0f : 0.0f);
+            setParam (p, ParamId::output, -12.0f);   // ниже лимитера: меряем саму стопку
+            p.prepareToPlay (sr, kBlock);
+            const auto out = run (p, note);
+            float pk = 0;
+            for (int i = on; i < on + (int) (0.03 * sr); ++i) pk = juce::jmax (pk, std::abs (out.getSample (0, i)));
+            return 20.0f * std::log10 (pk / (0.3f * juce::Decibels::decibelsToGain (-12.0f)));   // относительно входа
+        };
+        for (int c : { 2, 8, 40 })
+        {
+            const float off = onsetPeak (false, c), guarded = onsetPeak (true, c);
+            std::cout << "  x" << c << ": onset vs input " << juce::String (off, 1) << " dB, with guard " << juce::String (guarded, 1) << " dB\n";
+            CHECK (guarded <= 3.0f, "click guard: burst at note start x" << c);
+            CHECK (off > guarded + 6.0f, "click guard changes nothing x" << c);
+        }
+        // включение защиты посреди ноты — без скачка громкости
+        {
+            ChromaProcessor p;
+            p.presets.loadFactory (0);
+            p.setSlotType (0, EffectType::OttStack);
+            p.prepareToPlay (sr, kBlock);
+            run (p, testSignal (sr, 3.0));
+            const auto before = stats (run (p, testSignal (sr, 1.0)));
+            setParam (p, slotParam (0, ParamId::guard), 1.0f);
+            const auto after = stats (run (p, testSignal (sr, 1.0)));
+            std::cout << "  switching on mid-signal: " << juce::String (juce::Decibels::gainToDecibels (after.rms / before.rms), 2) << " dB\n";
+            CHECK (std::abs (juce::Decibels::gainToDecibels (after.rms / before.rms)) < 1.0f, "click guard switch jumps");
+            CHECK (! after.nan, "click guard NaN");
+        }
+    }
+
     // ---------------------------------------------------------------- порядок, копия, состояние
     std::cout << "rack and state\n";
     {
@@ -766,6 +818,13 @@ int main (int argc, char** argv)
         std::cout << "  4 x OTT Stack x40, 10 s stereo in " << juce::String (ms2, 0) << " ms (" << juce::String (10000.0 / ms2, 1) << "x realtime)\n";
         CHECK (ms2 < 8000.0, "OTT stack too slow");
         checkAudio (out2, "speed OTT");
+        for (int s = 0; s < 4; ++s) setParam (p, slotParam (s, ParamId::guard), 1.0f);
+        const auto t2 = juce::Time::getMillisecondCounterHiRes();
+        auto out3 = run (p, in);
+        const double ms3 = juce::Time::getMillisecondCounterHiRes() - t2;
+        std::cout << "  4 x OTT Stack x40 + click guard, 10 s stereo in " << juce::String (ms3, 0) << " ms (" << juce::String (10000.0 / ms3, 1) << "x realtime)\n";
+        CHECK (ms3 < 9000.0, "OTT stack with click guard too slow");
+        checkAudio (out3, "speed OTT guard");
     }
 
     // ---------------------------------------------------------------- демо WAV

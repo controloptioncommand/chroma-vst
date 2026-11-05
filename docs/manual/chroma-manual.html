@@ -84,7 +84,7 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
 <div class="cover">
   <div class="grid"></div>
   <div class="logo">chrōma</div>
-  <div class="sub">Руководство пользователя · <b>v2.02</b></div>
+  <div class="sub">Руководство пользователя · <b>v2.03</b></div>
   <div class="shot"><img src="img/main.jpg"></div>
   <div class="foot"><span>effect rack · VST3 · AU · macOS</span><span>made by nnn</span></div>
 </div>
@@ -288,13 +288,21 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <tr><td>Downward</td><td class="r">0–100%</td><td>Сколько сжимать громкое.</td></tr>
     <tr><td>Output</td><td class="r">−48…+12 dB</td><td>Громкость после всей стопки. По умолчанию <span class="mono">−3 dB</span>.</td></tr>
     <tr><td>Mix</td><td class="r">0–100%</td><td>Сухой / обработанный сигнал слота.</td></tr>
+    <tr><td>Click guard</td><td class="r">вкл / выкл</td><td>Защита от всплеска в начале ноты, в подвале панели рядом с On. По умолчанию выключена.</td></tr>
   </table>
   <figure class="mid" style="margin: 2mm 0 3mm"><img src="img/view_stack.jpg" style="max-width: 92mm"><figcaption>Вкладка Stack: строка — один OTT (первый сверху), три столбца — полосы. Синее — подъём тихого, розовое — сжатие громкого; чем насыщеннее, тем сильнее.</figcaption></figure>
+  <h3>Click guard</h3>
+  <p>После тишины OTT держит полный подъём тихого. Первые миллисекунды новой ноты стопка поднимает на 15–20 дБ, пока огибающая не догонит сигнал: даже синус с мягкой атакой начинается со щелчка до потолка. Это характер OTT, иногда он нужен. Когда мешает, включите <b>Click guard</b>:</p>
+  <ul>
+    <li>после паузы подъём тихого включается плавно (около 50 мс), а не сразу;</li>
+    <li>на резком нарастании громкости каждая ступень реагирует быстрым детектором (около 1 мс), а не огибающей из рецепта.</li>
+  </ul>
+  <p>Начало ноты остаётся не громче входа на всех Count. Звук после атаки и сама стопка не меняются, включение на ходу не даёт скачка громкости. Процессор — примерно на 5–10% больше.</p>
   <div class="note"><b>Что добавлено сверх Ableton.</b> Чтобы 40 OTT подряд оставались музыкой: у каждого OTT мягкий потолок <span class="mono">+6 dBFS</span> (ниже 0 dBFS звук не трогается) — иначе атаки копят по +10 дБ на каждой ступени. Ниже <span class="mono">−84 dBFS</span> стопка ничего не поднимает — шум и хвосты не вырастают до громкости музыки; цифровая тишина остаётся тишиной.</div>
 </section>
 
-<section>
-  <h2><span class="n">11</span>Пресеты и настройки</h2>
+<section style="break-before: auto">
+  <h2 style="margin-top: 10mm"><span class="n">11</span>Пресеты и настройки</h2>
   <table>
     <tr><th style="width:44mm">Пресет</th><th>Что это</th></tr>
     <tr><td>Biblically Accurate</td><td>Рецепт из видео один в один.</td></tr>

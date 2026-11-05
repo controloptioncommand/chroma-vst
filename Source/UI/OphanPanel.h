@@ -77,6 +77,7 @@ private:
     // OTT Stack
     ParamKnob count { "Count" }, ottDepth { "Depth" }, time { "Time" }, upward { "Upward" }, downward { "Downward" }, trim { "Output" };
     ParamToggle onToggle { "On" };
+    ParamToggle guardToggle { "Click guard" };   // OTT Stack: защита от всплеска в начале ноты
     juce::Label status;
 
     // Advanced: 7 полос × (L: from, to, gain from, gain to, Q | R: то же)

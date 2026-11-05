@@ -35,6 +35,7 @@ namespace ParamId
     inline constexpr const char* upward = "upward";
     inline constexpr const char* downward = "downward";
     inline constexpr const char* trim = "trim";
+    inline constexpr const char* guard = "guard";   // Click guard (v2.03)
 }
 
 // «s2_rate»

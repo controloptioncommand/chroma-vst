@@ -28,6 +28,8 @@ void OttStack::Stage::clear()
         // огибающая — там, где сжатие вниз ровно съедает подъём полосы: ступень стартует с усилением 0 дБ
         const double neutral = OttRecipe::kAbove[b] + OttRecipe::kMakeup[b] / (1.0 - 1.0 / OttRecipe::kRatioDown);
         env[b] = (float) std::pow (10.0, neutral / 20.0);
+        fast[b] = env[b];
+        gate[b] = -1.0f;   // «не задан»: первый шаг с защитой возьмёт текущее значение порога
         gain[b] = 1.0f;
         gainStep[b] = 0.0f;
         shownDb[b] = 0.0f;
@@ -83,6 +85,14 @@ void OttStack::control (const OttParams& p, int len)
         rel[b] = (float) std::exp (-1.0 / (OttRecipe::kReleaseMs[b] * 0.001 * timeNow * sr));
     }
 
+    attFast = (float) std::exp (-1.0 / (OttRecipe::kGuardAttackMs * 0.001 * sr));
+    // включили защиту — быстрый детектор стартует с огибающей, без скачка
+    // (порог — с текущего значения: см. ниже)
+    const bool guardStarts = p.guard && ! guardOn;
+    if (guardStarts) for (auto& s : stages) for (int b = 0; b < OttRecipe::kBands; ++b) s.fast[b] = s.env[b];
+    guardOn = p.guard;
+
+    const double gateK = 1.0 - std::exp (-dt / (OttRecipe::kGuardGateMs * 0.001));
     const double up = clampv ((double) p.upward, 0.0, 1.0) * (1.0 - 1.0 / OttRecipe::kRatioUp);
     const double down = clampv ((double) p.downward, 0.0, 1.0) * (1.0 - 1.0 / OttRecipe::kRatioDown);
     const float inv = 1.0f / (float) len;
@@ -95,8 +105,16 @@ void OttStack::control (const OttParams& p, int len)
         if (! on) continue;
         for (int b = 0; b < OttRecipe::kBands; ++b)
         {
-            const double lev = toDb ((double) s.env[b]);
-            const double gate = clampv ((lev - OttRecipe::kUpFloor) / (OttRecipe::kUpFull - OttRecipe::kUpFloor), 0.0, 1.0);
+            double lev = toDb ((double) s.env[b]);
+            if (guardOn) lev = std::max (lev, toDb ((double) s.fast[b]) - OttRecipe::kGuardMargin);
+            double gate = clampv ((lev - OttRecipe::kUpFloor) / (OttRecipe::kUpFull - OttRecipe::kUpFloor), 0.0, 1.0);
+            if (guardOn)
+            {
+                // Click guard: порог тишины движется плавно в обе стороны (несимметрично — смещал бы
+                // подъём почти пустых полос в установившемся звуке). Защиту включили — без скачка.
+                if (! guardStarts && ! (s.gate[b] < 0.0f)) gate = s.gate[b] + (gate - s.gate[b]) * gateK;
+                s.gate[b] = (float) gate;
+            }
             double g = 0.0;
             if (lev > OttRecipe::kAbove[b]) g -= (lev - OttRecipe::kAbove[b]) * down;
             if (lev < OttRecipe::kBelow[b]) g += (OttRecipe::kBelow[b] - lev) * up * gate;
@@ -109,6 +127,7 @@ void OttStack::control (const OttParams& p, int len)
 }
 
 // Одна ступень над блоком из len сэмплов (≤ kControl): состояние фильтров живёт в регистрах весь блок
+template <bool Guard>
 void OttStack::runStage (Stage& s, float* xl, float* xr, int len, float w, double* peak)
 {
     const float k = kBw;
@@ -116,6 +135,8 @@ void OttStack::runStage (Stage& s, float* xl, float* xr, int len, float w, doubl
     Channel& cl = s.ch[0];
     Channel& cr = s.ch[1];
     float env0 = s.env[0], env1 = s.env[1], env2 = s.env[2];
+    float fa0 = s.fast[0], fa1 = s.fast[1], fa2 = s.fast[2];
+    const float af = attFast;
     float g0 = s.gain[0], g1 = s.gain[1], g2 = s.gain[2];
     const float d0 = s.gainStep[0], d1 = s.gainStep[1], d2 = s.gainStep[2];
     float pk0 = 0, pk1 = 0, pk2 = 0;
@@ -141,6 +162,12 @@ void OttStack::runStage (Stage& s, float* xl, float* xr, int len, float w, doubl
         env0 = follow (env0, m0, att[0], rel[0]);
         env1 = follow (env1, m1, att[1], rel[1]);
         env2 = follow (env2, m2, att[2], rel[2]);
+        if constexpr (Guard)
+        {
+            fa0 = follow (fa0, m0, af, rel[0]);
+            fa1 = follow (fa1, m1, af, rel[1]);
+            fa2 = follow (fa2, m2, af, rel[2]);
+        }
         pk0 = std::max (pk0, m0); pk1 = std::max (pk1, m1); pk2 = std::max (pk2, m2);
         g0 += d0; g1 += d1; g2 += d2;
         // Depth — смесь с необработанными полосами (их сумма уже прошла те же фазовые сдвиги)
@@ -153,6 +180,7 @@ void OttStack::runStage (Stage& s, float* xl, float* xr, int len, float w, doubl
         }
     }
     s.env[0] = env0; s.env[1] = env1; s.env[2] = env2;
+    if constexpr (Guard) { s.fast[0] = fa0; s.fast[1] = fa1; s.fast[2] = fa2; }
     s.gain[0] = g0; s.gain[1] = g1; s.gain[2] = g2;
     if (peak != nullptr) { peak[0] = pk0; peak[1] = pk1; peak[2] = pk2; }
 }
@@ -177,7 +205,8 @@ void OttStack::process (float* L, float* R, int n, const OttParams& p, OttView* 
         for (int st = 0; st < active; ++st)
         {
             const float w = (float) (clampv (countNow - (double) st, 0.0, 1.0) * depth);
-            runStage (stages[(size_t) st], xl, stereo ? xr : nullptr, len, w, st == active - 1 ? peak : nullptr);
+            if (guardOn) runStage<true> (stages[(size_t) st], xl, stereo ? xr : nullptr, len, w, st == active - 1 ? peak : nullptr);
+            else runStage<false> (stages[(size_t) st], xl, stereo ? xr : nullptr, len, w, st == active - 1 ? peak : nullptr);
         }
 
         bool bad = false;

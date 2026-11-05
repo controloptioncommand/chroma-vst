@@ -99,6 +99,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         group->addChild (std::make_unique<Float> (juce::ParameterID { slotParam (s, ParamId::trim), 1 }, pre + "OTT output",
             juce::NormalisableRange<float> (-48.0f, 12.0f, 0.1f), -3.0f,
             Attr().withLabel ("dB").withStringFromValueFunction ([] (float v, int) { return signedText (v, " dB", 1); })));
+        // по умолчанию выключен: стопка звучит как раньше, всплеск в начале ноты — часть характера OTT
+        group->addChild (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { slotParam (s, ParamId::guard), 1 }, pre + "OTT click guard", false));
         l.add (std::move (group));
     }
     return l;

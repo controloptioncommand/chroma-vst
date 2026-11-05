@@ -6,7 +6,7 @@ const std::vector<const char*>& effectParamIds (EffectType t)
 {
     using namespace ParamId;
     static const std::vector<const char*> ophan { mix, rate, drift, depth, q, spread, lowCut, shape };
-    static const std::vector<const char*> ott { mix, count, ottDepth, time, upward, downward, trim };
+    static const std::vector<const char*> ott { mix, count, ottDepth, time, upward, downward, trim, guard };
     static const std::vector<const char*> none;
     return t == EffectType::Ophan ? ophan : t == EffectType::OttStack ? ott : none;
 }

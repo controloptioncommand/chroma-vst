@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.02-FF6B2C?style=flat-square&labelColor=18191C" alt="version 2.02">
+  <img src="https://img.shields.io/badge/version-2.03-FF6B2C?style=flat-square&labelColor=18191C" alt="version 2.03">
   <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-EDEDE9?style=flat-square&labelColor=18191C" alt="macOS, Apple Silicon">
   <img src="https://img.shields.io/badge/formats-VST3%20%C2%B7%20AU-8EA0FF?style=flat-square&labelColor=18191C" alt="VST3 and AU">
   <img src="https://img.shields.io/badge/vibe-coded-FF7AA2?style=flat-square&labelColor=18191C" alt="vibe-coded">
@@ -67,6 +67,7 @@
 - **Count** — главная ручка: сколько OTT стоит подряд, от 2 до 40. Меняется плавно — новые OTT въезжают по одному, без щелчков.
 - **Output** — громкость после всей стопки (−48…+12 dB).
 - Второстепенные: **Depth** (параллельная смесь каждого OTT, как у Xfer OTT), **Time** (атака и восстановление, 10–1000%), **Upward**, **Downward**, **Mix**.
+- **Click guard** (в подвале панели, по умолчанию выключен) — защита от щелчка в начале ноты после тишины. Без неё стопка, как и OTT, первые миллисекунды поднимает ноту на 15–20 дБ; с ней начало ноты не громче входа, а звук после атаки тот же.
 
 Каналы сжимаются вместе — стереокартина не плывёт. Вкладка **Stack** показывает работу каждого OTT по трём полосам: синее — подъём тихого, розовое — сжатие громкого.
 

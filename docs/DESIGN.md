@@ -83,7 +83,7 @@ Comme des Garçons Odeur 53 + Teenage Engineering: холодная технич
   - **Advanced**: сетка 7 полос × (Left | Right) × Freq from, Freq to, Gain from, Gain to, Q. Над группами — «Left» / «Right» с полоской цвета канала. Ячейка — плашка Well, радиус 8, рамка 1 px (при наведении — Ink 35%), число Medeo Mono 10. Тянуть вверх/вниз, Shift — точнее, двойной клик — значение рецепта.
   - **OTT Stack**: заголовок «OTT Stack · OTT in series», описание; слева главная ручка Count (×2…×40), за линией — Depth, Time, Upward, Downward, Output, Mix. Вкладок Macro / Advanced нет.
   - Пустой слот: «Slot N · Empty», описание и по кнопке на каждый эффект: «Ophan · Biblically accurate EQ», «OTT Stack · OTT in series» (Well, радиус 8, друг под другом).
-- **Подвал** панели (линия 1 px сверху): переключатель On (Live); в Advanced — «Drift rate» и кнопка «Reset to recipe»; справа «CPU 2%» (Medeo Mono, Ink 2).
+- **Подвал** панели (линия 1 px сверху): переключатель On (Live); у OTT Stack правее (через 16 px) — переключатель «Click guard» (Live); в Advanced — «Drift rate» и кнопка «Reset to recipe»; справа «CPU 2%» (Medeo Mono, Ink 2).
 - **Кнопки Play в главном окне нет.**
 
 ## Страница Credits
