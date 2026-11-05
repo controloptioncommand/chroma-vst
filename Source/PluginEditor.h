@@ -6,6 +6,7 @@
 #include "UI/Rack.h"
 #include "UI/OphanPanel.h"
 #include "UI/About.h"
+#include "UI/Credits.h"
 #include "Randomizer.h"
 
 namespace chroma
@@ -29,12 +30,16 @@ public:
     void selectSlotForTest (int slot) { selectSlot (slot); }
     void setAdvancedForTest (bool adv) { panel.setAdvancedForTest (adv); }
     void rollDiceForTest() { dice.triggerClick(); }
+    void showCreditsForTest (bool show) { showCredits (show); }
+    CreditsPage& getCreditsForTest() { return creditsPage; }
+    RackStrip& getRackForTest() { return rack; }
     void pumpForTest() { timerCallback(); }
 
 private:
     void timerCallback() override;
     void darkModeSettingChanged() override;
     void showAbout (bool show);
+    void showCredits (bool show);
     void showPresetMenu();
     void showSettingsMenu();
     void savePreset();
@@ -73,6 +78,7 @@ private:
     juce::Random rng;
 
     AboutPage about;
+    CreditsPage creditsPage;
     std::unique_ptr<juce::AlertWindow> saveWindow;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChromaEditor)

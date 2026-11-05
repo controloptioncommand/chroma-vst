@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.01-FF6B2C?style=flat-square&labelColor=18191C" alt="version 2.01">
+  <img src="https://img.shields.io/badge/version-2.02-FF6B2C?style=flat-square&labelColor=18191C" alt="version 2.02">
   <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-EDEDE9?style=flat-square&labelColor=18191C" alt="macOS, Apple Silicon">
   <img src="https://img.shields.io/badge/formats-VST3%20%C2%B7%20AU-8EA0FF?style=flat-square&labelColor=18191C" alt="VST3 and AU">
   <img src="https://img.shields.io/badge/vibe-coded-FF7AA2?style=flat-square&labelColor=18191C" alt="vibe-coded">
@@ -21,7 +21,7 @@
 
 ## Rack
 
-Четыре слота, сигнал идёт слева направо. У каждого слота — переключатель On, Mix и свои ручки.
+До восьми слотов, сигнал идёт слева направо. У каждого слота — переключатель On, Mix и свои ручки. Пока эффектов меньше четырёх, видно четыре места; как только их четыре — открываются все восемь, на экране четыре, остальные — прокруткой (колесо, трекпад или стрелки по краям rack).
 
 - **Serial / Parallel** — переключатель в тулбаре. Serial: слоты по очереди, порядок слышен. Parallel: каждый включённый слот обрабатывает сухой вход, выходы усредняются (один слот звучит так же, как в Serial). Режим хранится в проекте и пресете.
 - 🎲 **Кубик** в тулбаре: случайные ручки у эффектов, которые стоят в rack, в безопасных пределах. Тип эффекта, пустые слоты, On и громкость не трогает. Что ему можно менять — настройки → Randomizer: Ophan, OTT Stack, порядок слотов, Mix, рецепт полос Ophan (Advanced).
@@ -29,7 +29,8 @@
 - Порядок — перетаскиванием карточек или в меню слота («⋯» или правый клик): Move left, Move right, Duplicate, Clear slot.
 - Автоматизация привязана к слоту: переставили эффект — его дорожки автоматизации поехали вместе с ним.
 - Выключенный или пустой слот пропускает звук без изменений.
-- Настройки → Credits: Ophan — @rosco.moon, OTT — Ableton.
+- **Пресеты эффекта** — в заголовке панели слота `‹ имя ›`: свои и фабричные для каждого эффекта отдельно. Сохраняются ручки, Mix и у Ophan — Advanced; лежат в `~/Music/chroma/Presets/Effects/<эффект>/*.chromafx`.
+- Настройки → Credits — страница с теми, кто вдохновил эффекты: @rosco.moon — Ophan, Ableton — OTT Stack.
 
 ## Ophan — Biblically accurate EQ
 
@@ -130,6 +131,7 @@ bash docs/manual/build.sh
 | `Source/DSP/Lfo.h` | LFO: Sine и Stray |
 | `Source/PluginProcessor.*` | Rack: слоты, порядок, Serial / Parallel, состояние, метры |
 | `Source/Randomizer.*` | Кубик и его «безопасные» диапазоны |
+| `Source/EffectPresets.*` | Пресеты одного эффекта: фабричные и свои |
 | `Source/Params.*`, `Source/Presets.*` | Параметры слотов и пресеты |
 | `Source/UI/` | Интерфейс, темы Oxygen / Rubber, карточки rack, кривые, панель Macro / Advanced, About |
 

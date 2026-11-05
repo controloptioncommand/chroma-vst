@@ -41,6 +41,14 @@ const std::vector<FactoryPreset>& factoryPresets()
     return list;
 }
 
+void resetMissingParams (juce::AudioProcessorValueTreeState& apvts, const juce::ValueTree& loaded)
+{
+    for (auto* p : apvts.processor.getParameters())
+        if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
+            if (! loaded.getChildWithProperty ("id", rp->paramID).isValid())
+                rp->setValueNotifyingHost (rp->getDefaultValue());
+}
+
 PresetManager::PresetManager (juce::AudioProcessorValueTreeState& s, Hooks h) : apvts (s), hooks (std::move (h)) {}
 
 juce::String PresetManager::getCurrentName() const { return apvts.state.getProperty ("presetName", "Init").toString(); }
@@ -85,6 +93,7 @@ bool PresetManager::loadUser (const juce::File& f)
     // громкость выхода остаётся текущей
     const float out = apvts.getRawParameterValue (ParamId::output)->load();
     apvts.replaceState (tree);
+    resetMissingParams (apvts, tree);
     if (auto* p = apvts.getParameter (ParamId::output)) p->setValueNotifyingHost (p->convertTo0to1 (out));
     setCurrentName (f.getFileNameWithoutExtension());
     if (hooks.loaded) hooks.loaded (nullptr);

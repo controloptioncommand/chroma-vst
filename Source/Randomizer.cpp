@@ -87,9 +87,19 @@ void randomizeRack (ChromaProcessor& p, juce::Random& rng, const RandomizerOptio
         { const float v = logUni (0.15f, 1.0f); if (advOk) a.driftRate = v; }
     }
 
-    // порядок — перестановка Фишера–Йейтса; в Parallel порядок не слышен, его не трогаем
-    std::array<int, kSlots> o { 0, 1, 2, 3 };
-    for (int k = kSlots - 1; k > 0; --k) std::swap (o[(size_t) k], o[(size_t) rng.nextInt (k + 1)]);
+    // порядок: эффекты меняются местами только между занятыми местами (пустые места остаются на своих —
+    // эффект не уедет в скрытую часть rack). Перестановка Фишера–Йейтса; в Parallel порядок не слышен — не трогаем.
+    std::array<float, kSlots> r {};
+    for (auto& v : r) v = rng.nextFloat();
+    auto o = p.getOrder();
+    std::vector<int> places;
+    for (int k = 0; k < kSlots; ++k)
+        if (p.getSlotType (o[(size_t) k]) != EffectType::Empty) places.push_back (k);
+    for (int i = (int) places.size() - 1; i > 0; --i)
+    {
+        const int j = juce::jmin (i, (int) (r[(size_t) i] * (float) (i + 1)));
+        std::swap (o[(size_t) places[(size_t) i]], o[(size_t) places[(size_t) j]]);
+    }
     if (opt.allows (G::Order) && p.getChainMode() == ChainMode::Serial) p.setOrder (o);
 }
 } // namespace chroma

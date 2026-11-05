@@ -46,6 +46,7 @@ set(CHROMA_SOURCES
     Source/Params.cpp
     Source/Presets.cpp
     Source/Randomizer.cpp
+    Source/EffectPresets.cpp
     Source/DSP/Ophan.cpp
     Source/DSP/OttStack.cpp
     Source/UI/LookAndFeel.cpp
@@ -53,7 +54,8 @@ set(CHROMA_SOURCES
     Source/UI/Views.cpp
     Source/UI/Rack.cpp
     Source/UI/OphanPanel.cpp
-    Source/UI/About.cpp)
+    Source/UI/About.cpp
+    Source/UI/Credits.cpp)
 
 target_sources(chroma PRIVATE ${CHROMA_SOURCES})
 target_include_directories(chroma PRIVATE Source)

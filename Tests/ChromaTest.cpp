@@ -457,6 +457,95 @@ int main (int argc, char** argv)
         checkAudio (run (q, testSignal (48000.0, 1.0)), "after state round trip");
     }
 
+    // ---------------------------------------------------------------- 8 слотов
+    std::cout << "eight slots\n";
+    {
+        // проект v2.01: порядок из 4 цифр, параметров слотов 5–8 нет
+        ChromaProcessor p;
+        p.presets.loadFactory (0);
+        for (int s = 4; s < kSlots; ++s) { p.setSlotType (s, EffectType::OttStack); setParam (p, slotParam (s, ParamId::count), 30.0f); }
+        juce::MemoryBlock mb;
+        p.getStateInformation (mb);
+        auto xml = juce::AudioProcessor::getXmlFromBinary (mb.getData(), (int) mb.getSize());
+        xml->setAttribute ("order", "1023");
+        for (int s = 4; s < kSlots; ++s)
+            for (auto* e = xml->getFirstChildElement(); e != nullptr;)
+            {
+                auto* next = e->getNextElement();
+                if (e->getStringAttribute ("id").startsWith ("s" + juce::String (s + 1) + "_")) xml->removeChildElement (e, true);
+                e = next;
+            }
+        juce::MemoryBlock old;
+        juce::AudioProcessor::copyXmlToBinary (*xml, old);
+        p.setStateInformation (old.getData(), (int) old.getSize());
+        const auto o = p.getOrder();
+        CHECK (o[0] == 1 && o[1] == 0 && o[2] == 2 && o[3] == 3 && o[4] == 4 && o[7] == 7, "old 4-slot order not extended");
+        bool emptyRest = true;
+        for (int s = 4; s < kSlots; ++s) emptyRest = emptyRest && p.getSlotType (s) == EffectType::Empty;
+        CHECK (emptyRest, "old project: slots 5-8 not reset to empty");
+        CHECK (p.getSlotType (0) == EffectType::Ophan, "old project: slot 1 lost");
+        // 8 эффектов в Serial и Parallel
+        for (int s = 0; s < kSlots; ++s) p.setSlotType (s, s % 2 == 0 ? EffectType::Ophan : EffectType::OttStack);
+        p.prepareToPlay (48000.0, kBlock);
+        checkAudio (run (p, testSignal (48000.0, 1.0)), "eight slots serial");
+        p.setChainMode (ChainMode::Parallel);
+        p.prepareToPlay (48000.0, kBlock);
+        checkAudio (run (p, testSignal (48000.0, 1.0)), "eight slots parallel");
+    }
+
+    // ---------------------------------------------------------------- пресеты эффектов
+    std::cout << "effect presets\n";
+    {
+        ChromaProcessor p;
+        p.presets.loadFactory (0);
+        const auto& fo = effectFactoryPresets (EffectType::Ophan);
+        const auto& ft = effectFactoryPresets (EffectType::OttStack);
+        std::cout << "  " << fo.size() << " Ophan, " << ft.size() << " OTT Stack\n";
+        CHECK (fo.size() >= 8 && fo[0].name == "Biblically Accurate", "Ophan factory effect presets");
+        CHECK (ft.size() >= 4, "OTT factory effect presets");
+        CHECK (p.getEffectPresetName (0) == "Biblically Accurate", "rack preset does not name the effect");
+        auto value = [&p] (int s, const char* id) { return p.apvts.getRawParameterValue (slotParam (s, id))->load(); };
+        // фабричный: ручки, Mix — да, On — нет
+        setParam (p, slotParam (0, ParamId::on), 0.0f);
+        for (int i = 0; i < (int) fo.size(); ++i)
+            if (fo[(size_t) i].name == "Gentle Halo") p.loadEffectFactory (0, i);
+        CHECK (std::abs (value (0, ParamId::rate) - 0.3f) < 0.01f && std::abs (value (0, ParamId::mix) - 70.0f) < 0.01f, "effect factory values");
+        CHECK (value (0, ParamId::on) < 0.5f, "effect preset changed On");
+        CHECK (p.getEffectPresetName (0) == "Gentle Halo", "effect preset name");
+        setParam (p, slotParam (0, ParamId::on), 1.0f);
+        // свой: снимок → изменить → вернуть (с Advanced)
+        setParam (p, slotParam (0, ParamId::rate), 3.3f);
+        p.advanced (0).band[1][2].q = 4.25f;
+        const auto snap = p.captureEffect (0);
+        setParam (p, slotParam (0, ParamId::rate), 0.1f);
+        p.advanced (0).band[1][2].q = 17.0f;
+        CHECK (p.applyEffect (0, snap), "applyEffect failed");
+        CHECK (std::abs (value (0, ParamId::rate) - 3.3f) < 0.01f, "effect preset rate not restored");
+        CHECK (std::abs (p.advanced (0).band[1][2].q.load() - 4.25f) < 1e-4f, "effect preset advanced not restored");
+        // через XML, как в файле
+        auto xml = snap.createXml();
+        CHECK (xml != nullptr && p.applyEffect (0, juce::ValueTree::fromXml (*xml)), "effect preset XML round trip");
+        // пресет другого эффекта не грузится
+        p.setSlotType (1, EffectType::OttStack);
+        CHECK (p.getEffectPresetName (1) == "Init", "new effect is not Init");
+        CHECK (! p.applyEffect (1, snap), "Ophan preset applied to OTT Stack");
+        p.loadEffectFactory (1, 0);
+        CHECK (p.getEffectPresetName (1) == ft[0].name, "OTT effect preset name");
+        p.stepEffectPreset (1, 1);
+        CHECK (p.getEffectPresetName (1) == ft[1].name, "step effect preset");
+        // копия слота несёт имя; смена эффекта — сбрасывает
+        p.copySlot (1, 2);
+        CHECK (p.getEffectPresetName (2) == ft[1].name, "copySlot does not copy preset name");
+        p.setSlotType (2, EffectType::Ophan);
+        CHECK (p.getEffectPresetName (2) == "Init", "changing effect keeps preset name");
+        // имя едет в проект
+        juce::MemoryBlock mb;
+        p.getStateInformation (mb);
+        ChromaProcessor q;
+        q.setStateInformation (mb.getData(), (int) mb.getSize());
+        CHECK (q.getEffectPresetName (1) == ft[1].name, "effect preset name not restored");
+    }
+
     // ---------------------------------------------------------------- параллельный режим
     std::cout << "parallel\n";
     {
@@ -662,7 +751,7 @@ int main (int argc, char** argv)
     {
         ChromaProcessor p;
         p.prepareToPlay (48000.0, kBlock);
-        for (int s = 0; s < kSlots; ++s) p.setSlotType (s, EffectType::Ophan);
+        for (int s = 0; s < 4; ++s) p.setSlotType (s, EffectType::Ophan);
         const auto in = testSignal (48000.0, 10.0);
         const auto t0 = juce::Time::getMillisecondCounterHiRes();
         auto out = run (p, in);
@@ -670,7 +759,7 @@ int main (int argc, char** argv)
         std::cout << "  4 x Ophan, 10 s stereo in " << juce::String (ms, 0) << " ms (" << juce::String (10000.0 / ms, 1) << "x realtime)\n";
         CHECK (ms < 2000.0, "too slow");
         checkAudio (out, "speed");
-        for (int s = 0; s < kSlots; ++s) { p.setSlotType (s, EffectType::OttStack); setParam (p, slotParam (s, ParamId::count), 40.0f); }
+        for (int s = 0; s < 4; ++s) { p.setSlotType (s, EffectType::OttStack); setParam (p, slotParam (s, ParamId::count), 40.0f); }
         const auto t1 = juce::Time::getMillisecondCounterHiRes();
         auto out2 = run (p, in);
         const double ms2 = juce::Time::getMillisecondCounterHiRes() - t1;
@@ -765,9 +854,28 @@ int main (int argc, char** argv)
             shoot ("ui_" + tn + "_parallel");
             const float rate0 = p.apvts.getRawParameterValue (slotParam (0, ParamId::rate))->load();
             ed->rollDiceForTest();
-            juce::MessageManager::getInstance()->runDispatchLoopUntil (50);   // клик кнопки — асинхронный
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (300);   // клик кнопки — асинхронный, кнопка отжимается не сразу
             CHECK (p.apvts.getRawParameterValue (slotParam (0, ParamId::rate))->load() != rate0, "dice button did nothing");
             p.presets.loadFactory (0);
+
+            // 8 мест: пока эффектов меньше четырёх — видно 4
+            CHECK (ed->getRackForTest().getShownCount() == kBaseSlots, "rack shows 8 with one effect");
+            p.setSlotType (1, EffectType::OttStack);
+            p.setSlotType (2, EffectType::Ophan);
+            p.setSlotType (3, EffectType::OttStack);
+            run (p, music, ed);
+            CHECK (ed->getRackForTest().getShownCount() == kSlots, "rack does not show 8 with four effects");
+            shoot ("ui_" + tn + "_rack8");
+            ed->getRackForTest().scrollToEndForTest();
+            shoot ("ui_" + tn + "_rack8_end");
+            p.presets.loadFactory (0);
+            ed->pumpForTest();
+            CHECK (ed->getRackForTest().getShownCount() == kBaseSlots, "rack does not go back to 4");
+
+            ed->showCreditsForTest (true);
+            shoot ("credits_" + tn);
+            ed->getCreditsForTest().keyPressed (juce::KeyPress (juce::KeyPress::escapeKey));
+            CHECK (! ed->getCreditsForTest().isVisible(), "escape closes Credits");
 
             ed->showAboutForTest (true, false);
             shoot ("about_" + tn);

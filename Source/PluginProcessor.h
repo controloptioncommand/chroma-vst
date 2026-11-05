@@ -2,6 +2,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "Params.h"
 #include "Presets.h"
+#include "EffectPresets.h"
 #include "DSP/Ophan.h"
 #include "DSP/OttStack.h"
 
@@ -52,6 +53,16 @@ public:
     ChainMode getChainMode() const { return (ChainMode) chainMode.load(); }
     void setChainMode (ChainMode m);
 
+    // пресеты эффекта в слоте (поток сообщений). Имя хранится в состоянии; пустое — «Init».
+    juce::String getEffectPresetName (int slot) const;
+    void setEffectPresetName (int slot, const juce::String& name);
+    void loadEffectFactory (int slot, int index);
+    bool loadEffectUser (int slot, const juce::File& f);
+    bool saveEffectPreset (int slot, const juce::String& name);
+    void stepEffectPreset (int slot, int dir);
+    juce::ValueTree captureEffect (int slot);              // ручки, Mix и Advanced слота
+    bool applyEffect (int slot, const juce::ValueTree& t);   // false — пресет другого эффекта
+
     // расширенные настройки Ophan
     OphanAdvanced& advanced (int slot) { return adv[(size_t) juce::jlimit (0, kSlots - 1, slot)]; }
     void resetAdvanced (int slot);
@@ -79,7 +90,7 @@ private:
     std::array<OphanAdvanced, kSlots> adv;
     std::array<Ophan, kSlots> ophan;
     std::array<OttStack, kSlots> ott;
-    std::atomic<int> orderPacked { 0x3210 };   // по 4 бита на место
+    std::atomic<int> orderPacked { 0x76543210 };   // по 4 бита на место
     std::atomic<int> chainMode { (int) ChainMode::Serial };
 
     // параллельный режим: сухая копия, рабочий буфер ветки, сумма и сумма весов (выделены заранее)

@@ -7,9 +7,11 @@ namespace chroma
 class ChromaProcessor;
 
 // Полоса rack: слоты цепочки слева направо, между ними — стрелки хода сигнала.
+// Мест 8, но пока эффектов меньше четырёх (и все стоят на первых четырёх местах), видно 4.
+// На экране помещаются 4 карточки, остальные — прокруткой (колесо, трекпад, стрелки по краям).
 // Клик — выбрать слот, переключатель — On, «⋯» или правый клик — меню, перетаскивание — порядок.
 // С клавиатуры: ← → — выбор, ⌥← ⌥→ — переставить, пробел — On, Enter — меню.
-class RackStrip : public juce::Component
+class RackStrip : public juce::Component, private juce::Timer
 {
 public:
     explicit RackStrip (ChromaProcessor& p);
@@ -24,14 +26,25 @@ public:
     void mouseDrag (const juce::MouseEvent& e) override;
     void mouseUp (const juce::MouseEvent& e) override;
     void mouseMove (const juce::MouseEvent& e) override;
-    void mouseExit (const juce::MouseEvent&) override { hover = -1; repaint(); }
+    void mouseExit (const juce::MouseEvent&) override { hover = -1; hoverArrow = 0; repaint(); }
+    void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override;
     bool keyPressed (const juce::KeyPress& k) override;
     void focusGained (FocusChangeType) override { repaint(); }
     void focusLost (FocusChangeType) override { repaint(); }
 
     void showMenuForTest (int slot) { showMenu (slot); }
+    int getShownCount() const { return shown; }
+    void scrollToEndForTest() { scrollTarget = scrollX = maxScroll(); repaint(); }
 
 private:
+    void timerCallback() override;
+    void updateShown();
+    float cardWidth() const;
+    float maxScroll() const;
+    void scrollBy (float dx);
+    void scrollToPos (int pos);
+    juce::Rectangle<float> arrowRect (bool right) const;
+    bool arrowVisible (bool right) const;
     juce::Rectangle<float> cardRect (int pos) const;
     juce::Rectangle<float> switchRect (int pos) const;
     juce::Rectangle<float> menuRect (int pos) const;
@@ -46,6 +59,9 @@ private:
     int selected = 0, hover = -1;
     int dragFrom = -1, dropPos = -1;
     bool dragging = false;
+    int shown = kBaseSlots;                   // сколько мест показано: 4 или 8
+    float scrollX = 0.0f, scrollTarget = 0.0f;
+    int hoverArrow = 0;                       // −1 левая, +1 правая
     std::array<OphanSnapshot, kSlots> snaps;
     std::array<OttSnapshot, kSlots> ottSnaps;
     double sampleRate = 48000.0;

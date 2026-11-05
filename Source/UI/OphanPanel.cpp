@@ -143,8 +143,13 @@ SlotPanel::SlotPanel (ChromaProcessor& p) : proc (p)
     shapeSwitch.setItems ({ { "Sine", 0 }, { "Stray", 1 } });
     for (juce::Component* c : std::initializer_list<juce::Component*> { &modeSwitch, &shapeSwitch, &rate, &drift, &depth, &q, &spread, &lowCut, &mix,
                                                                         &onToggle, &status, &driftRate, &resetButton, &addOphan, &addOtt,
-                                                                        &count, &ottDepth, &time, &upward, &downward, &trim })
+                                                                        &count, &ottDepth, &time, &upward, &downward, &trim,
+                                                                        &prevPreset, &presetName, &nextPreset })
         addAndMakeVisible (c);
+    presetName.setTitle ("Effect preset");
+    presetName.onClick = [this] { showPresetMenu(); };
+    prevPreset.onClick = [this] { proc.stepEffectPreset (slot, -1); updatePresetName(); repaint(); };
+    nextPreset.onClick = [this] { proc.stepEffectPreset (slot, 1); updatePresetName(); repaint(); };
     count.setBig (true);
     status.setFont (LnF::mono (LnF::Type::footnote));
     status.getProperties().set ("dim", true);
@@ -166,6 +171,86 @@ SlotPanel::SlotPanel (ChromaProcessor& p) : proc (p)
 }
 
 OphanAdvanced& SlotPanel::adv() { return proc.advanced (slot); }
+
+void SlotPanel::updatePresetName()
+{
+    const auto n = proc.getEffectPresetName (slot);
+    presetName.setButtonText (n);
+    presetName.setDescription ("Effect preset " + n);
+}
+
+void SlotPanel::showPresetMenu()
+{
+    const auto type = proc.getSlotType (slot);
+    if (type == EffectType::Empty) return;
+    juce::PopupMenu m;
+    m.addSectionHeader (effectNames()[(int) type] + " presets");
+    const auto& fac = effectFactoryPresets (type);
+    const auto cur = proc.getEffectPresetName (slot);
+    for (int i = 0; i < (int) fac.size(); ++i) m.addItem (1 + i, fac[(size_t) i].name, true, cur == fac[(size_t) i].name);
+    const auto users = effectUserPresets (type);
+    if (! users.isEmpty())
+    {
+        m.addSeparator();
+        m.addSectionHeader ("User");
+        for (int i = 0; i < users.size(); ++i)
+            m.addItem (1000 + i, users[i].getFileNameWithoutExtension(), true, cur == users[i].getFileNameWithoutExtension());
+    }
+    m.addSeparator();
+    m.addItem (2000, "Save effect preset...");
+    m.addItem (2001, "Show effect presets folder");
+    juce::Component::SafePointer<SlotPanel> safe (this);
+    const int s = slot;
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (presetName), [safe, s, users, type] (int r)
+    {
+        if (safe == nullptr || r == 0 || safe->proc.getSlotType (s) != type) return;
+        if (r >= 1 && r < 1000) safe->proc.loadEffectFactory (s, r - 1);
+        else if (r >= 1000 && r < 2000 && r - 1000 < users.size()) safe->proc.loadEffectUser (s, users[r - 1000]);
+        else if (r == 2000) { safe->savePreset(); return; }
+        else if (r == 2001) { auto d = effectPresetFolder (type); d.createDirectory(); d.startAsProcess(); }
+        safe->updatePresetName();
+        safe->repaint();
+    });
+}
+
+void SlotPanel::savePreset()
+{
+    const auto type = proc.getSlotType (slot);
+    saveWindow = std::make_unique<juce::AlertWindow> ("Save " + effectNames()[(int) type] + " preset",
+        type == EffectType::Ophan ? "Knobs, Mix and advanced settings of this effect are saved." : "Knobs and Mix of this effect are saved.",
+        juce::MessageBoxIconType::NoIcon);
+    saveWindow->addTextEditor ("name", proc.getEffectPresetName (slot), "Name");
+    saveWindow->addButton ("Save", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    saveWindow->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+    const int s = slot;
+    saveWindow->enterModalState (true, juce::ModalCallbackFunction::create ([this, s] (int r)
+    {
+        if (r == 1 && saveWindow != nullptr)
+        {
+            if (! proc.saveEffectPreset (s, saveWindow->getTextEditorContents ("name")))
+                juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, productName(), "Could not save effect preset.");
+            updatePresetName();
+        }
+        saveWindow.reset();
+    }), false);
+}
+
+void SlotPanel::layoutHead()
+{
+    // «‹ имя ›» — слева от вкладок у Ophan, у правого края у OTT Stack
+    auto h = headArea.withHeight (30);
+    if (shownType == EffectType::Ophan) h.removeFromRight (220 + 16);
+    nextPreset.setBounds (h.removeFromRight (32));
+    presetName.setBounds (h.removeFromRight (170));
+    prevPreset.setBounds (h.removeFromRight (32));
+}
+
+// заголовок слева; справа — пресет эффекта и (у Ophan) вкладки Macro / Advanced
+juce::Rectangle<int> SlotPanel::titleArea() const
+{
+    if (shownType == EffectType::Empty) return headArea.withTrimmedRight (240);
+    return headArea.withRight (prevPreset.getX() - 20);
+}
 
 void SlotPanel::addEffect (EffectType t)
 {
@@ -235,6 +320,10 @@ void SlotPanel::updateVisibility()
     const bool ophan = shownType == EffectType::Ophan, ottType = shownType == EffectType::OttStack;
     const bool empty = ! ophan && ! ottType;
     modeSwitch.setVisible (ophan);
+    for (juce::Component* c : std::initializer_list<juce::Component*> { &prevPreset, &presetName, &nextPreset })
+        c->setVisible (! empty);
+    updatePresetName();
+    layoutHead();
     for (juce::Component* c : std::initializer_list<juce::Component*> { &shapeSwitch, &rate, &drift, &depth, &q, &spread, &lowCut })
         c->setVisible (ophan && ! advancedMode);
     for (juce::Component* c : std::initializer_list<juce::Component*> { &count, &ottDepth, &time, &upward, &downward, &trim })
@@ -259,6 +348,7 @@ void SlotPanel::resized()
     inner.removeFromTop (8);
     bodyArea = inner;
     modeSwitch.setBounds (headArea.withTrimmedLeft (headArea.getWidth() - 220).withHeight (30));
+    layoutHead();
 
     layoutBody();
 
@@ -327,7 +417,7 @@ void SlotPanel::paint (juce::Graphics& g)
     g.drawHorizontalLine (footArea.getY(), (float) footArea.getX(), (float) footArea.getRight());
 
     const int pos = [this] { auto o = proc.getOrder(); for (int k = 0; k < kSlots; ++k) if (o[(size_t) k] == slot) return k; return 0; }();
-    auto ta = headArea.withTrimmedRight (240);
+    auto ta = titleArea();
     g.setColour (Colours::ink);
     g.setFont (LnF::font (LnF::Type::title3, true));
     if (shownType == EffectType::OttStack)

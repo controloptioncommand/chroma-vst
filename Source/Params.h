@@ -5,7 +5,8 @@ namespace chroma
 {
 // Rack: цепочка из kSlots слотов. У каждого слота свой набор параметров с префиксом «s1_» … «s4_».
 // Параметры привязаны к слоту, а не к месту в цепочке: при перестановке автоматизация едет вместе с эффектом.
-inline constexpr int kSlots = 4;
+inline constexpr int kSlots = 8;
+inline constexpr int kBaseSlots = 4;   // столько мест видно в rack, пока эффектов меньше четырёх
 
 enum class EffectType { Empty = 0, Ophan = 1, OttStack = 2 };   // новые — только в конец
 enum class ChainMode { Serial = 0, Parallel = 1 };

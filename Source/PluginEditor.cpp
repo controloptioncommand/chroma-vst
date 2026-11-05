@@ -58,6 +58,8 @@ ChromaEditor::ChromaEditor (ChromaProcessor& p)
 
     content.addChildComponent (about);
     about.onClose = [this] { showAbout (false); };
+    content.addChildComponent (creditsPage);
+    creditsPage.onClose = [this] { showCredits (false); };
     disableClickFocus (*this);
 
     selectSlot (juce::jlimit (0, kSlots - 1, (int) proc.apvts.state.getProperty ("selectedSlot", 0)));
@@ -108,6 +110,7 @@ void ChromaEditor::showAbout (bool show)
     if (show)
     {
         about.setBounds (0, 0, kBaseW, kBaseH);
+    creditsPage.setBounds (0, 0, kBaseW, kBaseH);
         about.setBackLogoBounds (logo.getBounds());
         about.setVisible (true);
         about.toFront (true);
@@ -117,6 +120,19 @@ void ChromaEditor::showAbout (bool show)
     {
         about.showGame (false);
         about.setVisible (false);
+    }
+}
+
+void ChromaEditor::showCredits (bool show)
+{
+    if (show == creditsPage.isVisible()) return;
+    creditsPage.setVisible (show);
+    if (show)
+    {
+        creditsPage.setBounds (0, 0, kBaseW, kBaseH);
+        creditsPage.setBackLogoBounds (logo.getBounds());
+        creditsPage.toFront (true);
+        creditsPage.grabKeyboardFocus();
     }
 }
 
@@ -214,15 +230,12 @@ void ChromaEditor::showSettingsMenu()
     m.addSeparator();
     m.addItem (2000, "Save preset...");
     m.addSeparator();
-    juce::PopupMenu credits;
-    const auto dash = juce::String::fromUTF8 (" \xe2\x80\x94 ");
-    credits.addItem (400, "Ophan" + dash + "@rosco.moon");
-    credits.addItem (401, "OTT" + dash + "Ableton");
-    m.addSubMenu ("Credits", credits);
+    m.addItem (6, "Credits");
     m.addItem (5, "About " + productName());
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (settingsButton), [this] (int r)
     {
         if (r == 5) showAbout (true);
+        else if (r == 6) showCredits (true);
         else if (r == 2000) savePreset();
         else if (r == 201) setThemeMode (ThemeMode::System);
         else if (r == 202) setThemeMode (ThemeMode::Oxygen);
@@ -294,7 +307,7 @@ void ChromaEditor::timerCallback()
     if (ready > 0)
     {
         const auto rd = proc.scopeFifo.read (ready);
-        if (! about.isVisible())
+        if (! about.isVisible() && ! creditsPage.isVisible())
             for (auto [start, size] : { std::pair<int, int> { rd.startIndex1, rd.blockSize1 }, std::pair<int, int> { rd.startIndex2, rd.blockSize2 } })
                 if (size > 0)
                 {
@@ -302,7 +315,7 @@ void ChromaEditor::timerCallback()
                     mini.push (proc.scopeBuf.data() + start, size);
                 }
     }
-    if (about.isVisible()) return;
+    if (about.isVisible() || creditsPage.isVisible()) return;
 
     const double sr = proc.getSampleRate() > 0 ? proc.getSampleRate() : 48000.0;
     for (int s = 0; s < kSlots; ++s)
@@ -355,6 +368,7 @@ void ChromaEditor::timerCallback()
     outMeter.setLevel (proc.outPeak.load());
     presetName.setButtonText (proc.presets.getCurrentName());
     presetName.setDescription ("Preset " + proc.presets.getCurrentName());
+    panel.updatePresetName();
     panel.setStatus ("CPU " + juce::String (juce::roundToInt (proc.cpuLoad.load() * 100.0f)) + "%");
 }
 } // namespace chroma

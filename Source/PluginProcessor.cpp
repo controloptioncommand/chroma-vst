@@ -33,6 +33,13 @@ std::array<int, kSlots> unpackOrder (int v)
     return o;
 }
 
+std::array<int, kSlots> identityOrder()
+{
+    std::array<int, kSlots> o {};
+    for (int k = 0; k < kSlots; ++k) o[(size_t) k] = k;
+    return o;
+}
+
 // порядок валиден, только если это перестановка 0…kSlots−1
 bool validOrder (const std::array<int, kSlots>& o)
 {
@@ -43,6 +50,31 @@ bool validOrder (const std::array<int, kSlots>& o)
         seen[(size_t) s] = true;
     }
     return true;
+}
+
+juce::String fxKey (int slot) { return "fxPreset" + juce::String (slot + 1); }   // имя пресета эффекта в состоянии
+
+// Advanced Ophan ↔ свойства узла: «L2fFrom», «R8q», …, «driftRate»
+void writeAdvanced (juce::ValueTree& t, OphanAdvanced& a)
+{
+    t.setProperty ("driftRate", a.driftRate.load(), nullptr);
+    for (int side = 0; side < 2; ++side)
+        for (int b = 0; b < OphanRecipe::kBands; ++b)
+            for (int f = 0; f < 5; ++f)
+                t.setProperty (juce::String (side == 0 ? "L" : "R") + juce::String (b + 2) + kBandFields[f],
+                               bandField (a.band[(size_t) side][(size_t) b], f).load(), nullptr);
+}
+
+void readAdvanced (const juce::ValueTree& t, OphanAdvanced& a)
+{
+    a.driftRate = juce::jlimit (0.01f, 20.0f, (float) t.getProperty ("driftRate", 0.35f));
+    for (int side = 0; side < 2; ++side)
+        for (int b = 0; b < OphanRecipe::kBands; ++b)
+            for (int f = 0; f < 5; ++f)
+            {
+                const auto key = juce::String (side == 0 ? "L" : "R") + juce::String (b + 2) + kBandFields[f];
+                if (t.hasProperty (key)) bandField (a.band[(size_t) side][(size_t) b], f).store ((float) t.getProperty (key));
+            }
 }
 
 // мягкий лимитер: ниже −1 dBFS ничего не трогает, выше — плавно к 0 dBFS
@@ -112,6 +144,7 @@ EffectType ChromaProcessor::getSlotType (int slot) const
 
 void ChromaProcessor::setSlotType (int slot, EffectType t)
 {
+    if (t != getSlotType (slot)) setEffectPresetName (slot, {});
     if (auto* p = apvts.getParameter (slotParam (slot, ParamId::type)))
         p->setValueNotifyingHost (p->convertTo0to1 ((float) t));
 }
@@ -162,6 +195,7 @@ void ChromaProcessor::clearSlot (int slot)
                      ParamId::count, ParamId::ottDepth, ParamId::time, ParamId::upward, ParamId::downward, ParamId::trim })
         if (auto* p = apvts.getParameter (slotParam (slot, id))) p->setValueNotifyingHost (p->getDefaultValue());
     setSlotType (slot, EffectType::Empty);
+    setEffectPresetName (slot, {});
     resetAdvanced (slot);
 }
 
@@ -179,9 +213,107 @@ void ChromaProcessor::copySlot (int from, int to)
             for (int f = 0; f < 5; ++f)
                 bandField (b.band[(size_t) s][(size_t) k], f).store (bandField (a.band[(size_t) s][(size_t) k], f).load());
     b.driftRate.store (a.driftRate.load());
+    setEffectPresetName (to, apvts.state.getProperty (fxKey (from)).toString());
 }
 
 void ChromaProcessor::resetAdvanced (int slot) { advanced (slot).resetToRecipe(); }
+
+// ---------------------------------------------------------------------------
+// пресеты эффекта
+
+juce::String ChromaProcessor::getEffectPresetName (int slot) const
+{
+    const auto n = apvts.state.getProperty (fxKey (slot)).toString();
+    return n.isEmpty() ? juce::String ("Init") : n;
+}
+
+void ChromaProcessor::setEffectPresetName (int slot, const juce::String& name) { apvts.state.setProperty (fxKey (slot), name, nullptr); }
+
+juce::ValueTree ChromaProcessor::captureEffect (int slot)
+{
+    const auto type = getSlotType (slot);
+    juce::ValueTree t ("ChromaEffect");
+    t.setProperty ("effect", effectNames()[(int) type], nullptr);
+    for (auto* id : effectParamIds (type))
+        if (auto* p = apvts.getParameter (slotParam (slot, id)))
+            t.setProperty (id, p->convertFrom0to1 (p->getValue()), nullptr);
+    if (type == EffectType::Ophan)
+    {
+        juce::ValueTree a ("Advanced");
+        writeAdvanced (a, adv[(size_t) slot]);
+        t.appendChild (a, nullptr);
+    }
+    return t;
+}
+
+bool ChromaProcessor::applyEffect (int slot, const juce::ValueTree& t)
+{
+    const auto type = getSlotType (slot);
+    if (type == EffectType::Empty || ! t.hasType ("ChromaEffect") || t.getProperty ("effect").toString() != effectNames()[(int) type]) return false;
+    for (auto* id : effectParamIds (type))
+        if (auto* p = apvts.getParameter (slotParam (slot, id)))
+        {
+            p->beginChangeGesture();
+            p->setValueNotifyingHost (t.hasProperty (id) ? p->convertTo0to1 ((float) t.getProperty (id)) : p->getDefaultValue());
+            p->endChangeGesture();
+        }
+    if (type == EffectType::Ophan)
+    {
+        adv[(size_t) slot].resetToRecipe();
+        const auto a = t.getChildWithName ("Advanced");
+        if (a.isValid()) readAdvanced (a, adv[(size_t) slot]);
+    }
+    return true;
+}
+
+void ChromaProcessor::loadEffectFactory (int slot, int index)
+{
+    const auto type = getSlotType (slot);
+    const auto& list = effectFactoryPresets (type);
+    if (index < 0 || index >= (int) list.size()) return;
+    juce::ValueTree t ("ChromaEffect");
+    t.setProperty ("effect", effectNames()[(int) type], nullptr);
+    for (auto& kv : list[(size_t) index].values) t.setProperty (kv.first, kv.second, nullptr);
+    if (applyEffect (slot, t)) setEffectPresetName (slot, list[(size_t) index].name);
+}
+
+bool ChromaProcessor::loadEffectUser (int slot, const juce::File& f)
+{
+    auto xml = juce::XmlDocument::parse (f);
+    if (xml == nullptr || ! applyEffect (slot, juce::ValueTree::fromXml (*xml))) return false;
+    setEffectPresetName (slot, f.getFileNameWithoutExtension());
+    return true;
+}
+
+bool ChromaProcessor::saveEffectPreset (int slot, const juce::String& name)
+{
+    const auto type = getSlotType (slot);
+    const auto clean = juce::File::createLegalFileName (name.trim());
+    if (type == EffectType::Empty || clean.isEmpty()) return false;
+    auto dir = effectPresetFolder (type);
+    if (! dir.createDirectory()) return false;
+    auto xml = captureEffect (slot).createXml();
+    if (xml == nullptr || ! xml->writeTo (dir.getChildFile (clean + ".chromafx"))) return false;
+    setEffectPresetName (slot, clean);
+    return true;
+}
+
+void ChromaProcessor::stepEffectPreset (int slot, int dir)
+{
+    // общий список: фабричные, затем свои
+    const auto type = getSlotType (slot);
+    const auto& fac = effectFactoryPresets (type);
+    const auto users = effectUserPresets (type);
+    const int nf = (int) fac.size(), total = nf + users.size();
+    if (type == EffectType::Empty || total == 0) return;
+    const auto cur = getEffectPresetName (slot);
+    int idx = -1;
+    for (int i = 0; i < nf; ++i) if (cur == fac[(size_t) i].name) idx = i;
+    for (int i = 0; i < users.size(); ++i) if (cur == users[i].getFileNameWithoutExtension()) idx = nf + i;
+    idx = idx < 0 ? (dir > 0 ? 0 : total - 1) : (idx + dir + total) % total;
+    if (idx < nf) loadEffectFactory (slot, idx);
+    else loadEffectUser (slot, users[idx - nf]);
+}
 
 // ---------------------------------------------------------------------------
 // состояние: расширенные настройки и порядок живут в дочернем узле «Rack»
@@ -197,24 +329,33 @@ void ChromaProcessor::pushRackState()
     {
         juce::ValueTree t ("Slot");
         t.setProperty ("index", slot, nullptr);
-        auto& a = adv[(size_t) slot];
-        t.setProperty ("driftRate", a.driftRate.load(), nullptr);
-        for (int side = 0; side < 2; ++side)
-            for (int b = 0; b < OphanRecipe::kBands; ++b)
-                for (int f = 0; f < 5; ++f)
-                    t.setProperty (juce::String (side == 0 ? "L" : "R") + juce::String (b + 2) + kBandFields[f],
-                                   bandField (a.band[(size_t) side][(size_t) b], f).load(), nullptr);
+        writeAdvanced (t, adv[(size_t) slot]);
         rack.appendChild (t, nullptr);
     }
 }
 
+// «order» — строка номеров слотов; в проектах до v2.02 (4 слота) — «0123»: недостающие слоты встают в конец по порядку
+static std::array<int, kSlots> parseOrder (const juce::String& s)
+{
+    std::array<int, kSlots> o {};
+    std::array<bool, kSlots> used {};
+    int k = 0;
+    for (int i = 0; i < s.length() && k < kSlots; ++i)
+    {
+        const int v = s[i] - '0';
+        if (v < 0 || v >= kSlots || used[(size_t) v]) return identityOrder();
+        used[(size_t) v] = true;
+        o[(size_t) k++] = v;
+    }
+    for (int v = 0; v < kSlots; ++v)
+        if (! used[(size_t) v]) o[(size_t) k++] = v;
+    return o;
+}
+
 void ChromaProcessor::pullRackState()
 {
-    std::array<int, kSlots> o { 0, 1, 2, 3 };
-    const auto s = apvts.state.getProperty ("order").toString();
-    if (s.length() == kSlots)
-        for (int k = 0; k < kSlots; ++k) o[(size_t) k] = s[k] - '0';
-    if (! validOrder (o)) o = { 0, 1, 2, 3 };
+    auto o = parseOrder (apvts.state.getProperty ("order").toString());
+    if (! validOrder (o)) o = identityOrder();
     setOrder (o);
     // старые проекты без «mode» — последовательно
     setChainMode (apvts.state.getProperty ("mode").toString() == "parallel" ? ChainMode::Parallel : ChainMode::Serial);
@@ -225,15 +366,7 @@ void ChromaProcessor::pullRackState()
     {
         const int slot = t.getProperty ("index", -1);
         if (slot < 0 || slot >= kSlots) continue;
-        auto& a = adv[(size_t) slot];
-        a.driftRate = juce::jlimit (0.01f, 20.0f, (float) t.getProperty ("driftRate", 0.35f));
-        for (int side = 0; side < 2; ++side)
-            for (int b = 0; b < OphanRecipe::kBands; ++b)
-                for (int f = 0; f < 5; ++f)
-                {
-                    const auto key = juce::String (side == 0 ? "L" : "R") + juce::String (b + 2) + kBandFields[f];
-                    if (t.hasProperty (key)) bandField (a.band[(size_t) side][(size_t) b], f).store ((float) t.getProperty (key));
-                }
+        readAdvanced (t, adv[(size_t) slot]);
     }
 }
 
@@ -244,6 +377,15 @@ void ChromaProcessor::onPresetLoaded (const FactoryPreset* fp)
         apvts.state.removeChild (apvts.state.getChildWithName ("Rack"), nullptr);
         apvts.state.setProperty ("order", fp->order, nullptr);
         apvts.state.setProperty ("mode", fp->mode == ChainMode::Parallel ? "parallel" : "serial", nullptr);
+        // имя пресета эффекта: у первого слота каждого эффекта — имя пресета rack (такой же есть в списке пресетов эффекта)
+        std::array<bool, 3> seen {};
+        for (int s = 0; s < kSlots; ++s)
+        {
+            const auto t = getSlotType (s);
+            const bool first = t != EffectType::Empty && ! seen[(size_t) t];
+            seen[(size_t) t] = true;
+            setEffectPresetName (s, first ? juce::String (fp->name) : juce::String());
+        }
     }
     pullRackState();
 }
@@ -260,7 +402,9 @@ void ChromaProcessor::setStateInformation (const void* data, int sizeInBytes)
     if (auto xml = getXmlFromBinary (data, sizeInBytes))
         if (xml->hasTagName (apvts.state.getType()))
         {
-            apvts.replaceState (juce::ValueTree::fromXml (*xml));
+            const auto tree = juce::ValueTree::fromXml (*xml);
+            apvts.replaceState (tree);
+            resetMissingParams (apvts, tree);   // проект до v2.02: слотов 5–8 в нём нет — они пустые
             pullRackState();
         }
 }

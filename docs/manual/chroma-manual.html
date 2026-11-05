@@ -20,7 +20,7 @@
 * { box-sizing: border-box; }
 html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body { margin: 0; font-family: "Medeo Sans", sans-serif; font-size: 10pt; line-height: 1.5; color: var(--ink); background: #fff; }
-h1, h2, h3 { font-weight: 600; line-height: 1.2; margin: 0; }
+h1, h2, h3 { font-weight: 600; line-height: 1.2; margin: 0; break-after: avoid; }
 h2 { font-size: 20pt; margin: 0 0 4mm; padding-top: 1mm; }
 h2 .n { font-family: "Medeo Mono"; color: var(--signal); font-size: 11pt; vertical-align: 4pt; margin-right: 3mm; }
 h3 { font-size: 12pt; margin: 6mm 0 2mm; }
@@ -84,7 +84,7 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
 <div class="cover">
   <div class="grid"></div>
   <div class="logo">chrōma</div>
-  <div class="sub">Руководство пользователя · <b>v2.01</b></div>
+  <div class="sub">Руководство пользователя · <b>v2.02</b></div>
   <div class="shot"><img src="img/main.jpg"></div>
   <div class="foot"><span>effect rack · VST3 · AU · macOS</span><span>made by nnn</span></div>
 </div>
@@ -110,12 +110,13 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <h2 style="margin-top: 10mm"><span class="n">01</span>Что такое chrōma</h2>
   <p class="lead">chrōma — rack с экспериментальными эффектами обработки. Приёмы, которые в DAW собирают из нескольких устройств и десятка маппингов, здесь собраны в один эффект.</p>
   <ul>
-    <li>Цепочка из <b>четырёх слотов</b>: сигнал идёт слева направо, порядок меняется перетаскиванием. Или <b>Parallel</b>: каждый слот обрабатывает сухой вход, выходы смешиваются.</li>
+    <li>Цепочка <b>до восьми слотов</b>: сигнал идёт слева направо, порядок меняется перетаскиванием. Или <b>Parallel</b>: каждый слот обрабатывает сухой вход, выходы смешиваются.</li>
     <li>У каждого слота — переключатель <b>On</b>, <b>Mix</b> и ручки эффекта. Автоматизация привязана к слоту и едет вместе с ним.</li>
     <li><b>Ophan</b>, «Biblically accurate EQ»: EQ Eight в режиме L/R, семь узких колоколов на канал и пять LFO, которые гоняют их по спектру и по стереобазе.</li>
     <li><b>OTT Stack</b>: от 2 до 40 OTT подряд одной ручкой, громкость после стопки — отдельной.</li>
     <li>Живые кривые Ophan и карта ступеней OTT поверх спектра выхода.</li>
     <li><b>Кубик</b>: случайные настройки эффектов, которые стоят в rack, в безопасных пределах.</li>
+    <li><b>Пресеты эффектов</b>: у каждого эффекта свои, в заголовке панели слота.</li>
     <li>16 фабричных пресетов. Весь rack сохраняется в проекте Ableton.</li>
   </ul>
   <div class="note"><b>Как читать.</b> Названия ручек и кнопок даны так, как они подписаны в плагине (по-английски). Диапазоны — моноширинным шрифтом.</div>
@@ -153,9 +154,9 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <table>
     <tr><th style="width:34mm">Зона</th><th>Что там</th></tr>
     <tr><td>Тулбар</td><td>Логотип (клик — страница About), пресет <span class="mono">‹ имя ›</span>, кубик, режим Serial / Parallel, мини-спектрограмма, уровни In и Out, настройки.</td></tr>
-    <tr><td>Rack</td><td>Четыре слота цепочки. Выбранный слот обведён.</td></tr>
+    <tr><td>Rack</td><td>Слоты цепочки: 4 места, с четырьмя эффектами — 8 (прокруткой). Выбранный слот обведён.</td></tr>
     <tr><td>Главный вид</td><td>Curves (Ophan) или Stack (OTT Stack) — что делает выбранный слот, поверх спектра; Scope — волна на выходе.</td></tr>
-    <tr><td>Панель</td><td>Ручки выбранного слота (у Ophan — вкладки Macro и Advanced). Внизу — On и CPU.</td></tr>
+    <tr><td>Панель</td><td>Ручки выбранного слота, пресет эффекта <span class="mono">‹ имя ›</span> (у Ophan — ещё вкладки Macro и Advanced). Внизу — On и CPU.</td></tr>
   </table>
   <h3>Тулбар</h3>
   <figure><img src="img/toolbar.jpg"></figure>
@@ -174,6 +175,9 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
 <section>
   <h2><span class="n">05</span>Rack: слоты, порядок и режимы</h2>
   <figure style="margin-top:0"><img src="img/rack.jpg"><figcaption>Два Ophan подряд и два пустых слота. Шевроны между карточками — направление сигнала.</figcaption></figure>
+  <h3>До восьми слотов</h3>
+  <p>Пока эффектов меньше четырёх, в rack четыре места. Как только эффектов четыре, открываются все восемь. На экране помещаются четыре карточки, остальные — прокруткой: колесом мыши, трекпадом или круглыми стрелками по краям rack (клик — на четыре места). Перетаскивание к краю rack тоже прокручивает. Если снова оставить меньше четырёх эффектов на первых четырёх местах, rack вернётся к четырём.</p>
+  <figure><img src="img/rack8.jpg"><figcaption>Четыре эффекта — открыты все восемь мест, справа стрелка к местам 5–8.</figcaption></figure>
   <p>Сигнал проходит слоты слева направо. На карточке: номер места в цепочке, имя эффекта, переключатель <b>On</b>, меню <b>⋯</b>, миниатюра кривых, Mix и скорость LFO.</p>
   <table>
     <tr><th style="width:40mm">Действие</th><th>Как</th></tr>
@@ -310,6 +314,14 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <tr><td>Angel Crush</td><td>OTT ×24 → Ophan.</td></tr>
     <tr><td>Ophanim</td><td>Parallel: два Ophan на одном входе, Stray и Sine, — их колокола расходятся и сходятся.</td></tr>
   </table>
+  <h3>Пресеты эффекта</h3>
+  <p>У каждого эффекта — свои пресеты, отдельно от пресетов rack. Они в заголовке панели слота: <span class="mono">‹ имя ›</span>. Стрелки листают, клик по имени — список, <b>Save effect preset…</b> и <b>Show effect presets folder</b>.</p>
+  <ul>
+    <li>В пресет эффекта входят его ручки и Mix, у Ophan — ещё Advanced. On не входит.</li>
+    <li>Фабричные — из пресетов rack выше: 13 для Ophan (Advanced — рецепт), 5 для OTT Stack.</li>
+    <li>Свои лежат в <code>~/Music/chroma/Presets/Effects/Ophan</code> и <code>…/OTT Stack</code> (<code>*.chromafx</code>). Пресет одного эффекта в другой не загрузить.</li>
+    <li>Новый эффект в слоте — «Init». Duplicate переносит имя, пресет rack называет первый слот каждого эффекта своим именем.</li>
+  </ul>
   <p>Пресет хранит весь rack: типы и ручки слотов, порядок, режим Serial / Parallel и Advanced. Громкость Out пресет не меняет. Свои пресеты — меню пресета → <b>Save preset…</b>, лежат в <code>~/Music/chroma/Presets/*.chroma</code>.</p>
   <h3>Кубик</h3>
   <p>Кнопка с кубиком в тулбаре случайно выставляет ручки эффектов, которые уже стоят в rack. Диапазоны «безопасные»: тишины и перегруза не будет.</p>
@@ -322,7 +334,7 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   </ul>
   <p>Что кубику можно менять — настройки → <b>Randomizer</b>, галочки по пунктам выше. Выбор хранится в настройках плагина и действует во всех проектах. Кубик никогда не трогает тип эффекта, пустые слоты, On, режим Serial / Parallel, громкость Out и Output у OTT Stack. Автоматизация хоста видит изменения как обычные движения ручек.</p>
   <h3>Credits</h3>
-  <p>Настройки → <b>Credits</b>: Ophan — по рецепту @rosco.moon, OTT — пресет Ableton.</p>
+  <p>Настройки → <b>Credits</b> — отдельная страница: кто вдохновил эффекты. @rosco.moon — Ophan, Ableton — OTT Stack. Назад — маленький логотип или Escape.</p>
   <h3>Темы</h3>
   <p><b>Oxygen</b> — светлая, <b>Rubber</b> — тёмная или по системе: настройки → Appearance.</p>
   <figure class="small" style="margin-top:2mm"><img src="img/main_oxygen.jpg" style="max-width: 78mm"><figcaption>Светлая тема Oxygen.</figcaption></figure>

@@ -23,6 +23,7 @@ void RackStrip::setSelected (int slot)
     slot = juce::jlimit (0, kSlots - 1, slot);
     if (slot == selected) return;
     selected = slot;
+    if (getWidth() > 0 && posOfSlot (slot) < shown) scrollToPos (posOfSlot (slot));
     updateDescription();
     repaint();
 }
@@ -32,7 +33,7 @@ void RackStrip::updateDescription()
     const auto order = proc.getOrder();
     const bool parallel = proc.getChainMode() == ChainMode::Parallel;
     juce::String d = parallel ? "Parallel effects, outputs averaged:" : "Effect chain, left to right:";
-    for (int k = 0; k < kSlots; ++k)
+    for (int k = 0; k < shown; ++k)
     {
         const int s = order[(size_t) k];
         const auto t = proc.getSlotType (s);
@@ -47,14 +48,83 @@ void RackStrip::update (const std::array<OphanSnapshot, kSlots>& s, const std::a
     snaps = s;
     ottSnaps = o;
     sampleRate = sr;
+    updateShown();
     updateDescription();
     repaint();
 }
 
+// 8 мест — когда эффектов уже четыре или какой-то стоит дальше четвёртого места
+void RackStrip::updateShown()
+{
+    const auto o = proc.getOrder();
+    int filled = 0;
+    bool beyond = false;
+    for (int k = 0; k < kSlots; ++k)
+        if (proc.getSlotType (o[(size_t) k]) != EffectType::Empty)
+        {
+            ++filled;
+            beyond = beyond || k >= kBaseSlots;
+        }
+    const int n = filled >= kBaseSlots || beyond ? kSlots : kBaseSlots;
+    if (n == shown) return;
+    shown = n;
+    scrollTarget = juce::jlimit (0.0f, maxScroll(), scrollTarget);
+    if (shown == kBaseSlots) scrollX = scrollTarget = 0.0f;
+    // выбранный слот спрятался — выбрать первый
+    if (posOfSlot (selected) >= shown) { selected = o[0]; if (onSelect) onSelect (selected); }
+}
+
+float RackStrip::cardWidth() const { return ((float) getWidth() - kGap * (float) (kBaseSlots - 1)) / (float) kBaseSlots; }
+
+float RackStrip::maxScroll() const { return juce::jmax (0.0f, (cardWidth() + kGap) * (float) (shown - kBaseSlots)); }
+
+void RackStrip::scrollBy (float dx)
+{
+    scrollTarget = juce::jlimit (0.0f, maxScroll(), scrollTarget + dx);
+    if (Accessibility::reduceMotion()) scrollX = scrollTarget;
+    if (std::abs (scrollTarget - scrollX) > 0.5f) startTimerHz (60);
+    repaint();
+}
+
+// место pos целиком на экране
+void RackStrip::scrollToPos (int pos)
+{
+    const float step = cardWidth() + kGap;
+    const float x = step * (float) pos;
+    if (x < scrollTarget) scrollBy (x - scrollTarget);
+    else if (x + cardWidth() > scrollTarget + (float) getWidth()) scrollBy (x + cardWidth() - (float) getWidth() - scrollTarget);
+}
+
+void RackStrip::timerCallback()
+{
+    scrollX += (scrollTarget - scrollX) * 0.3f;
+    if (std::abs (scrollTarget - scrollX) < 0.5f) { scrollX = scrollTarget; stopTimer(); }
+    repaint();
+}
+
+void RackStrip::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w)
+{
+    if (shown <= kBaseSlots) return;
+    const float d = std::abs (w.deltaX) > std::abs (w.deltaY) ? w.deltaX : w.deltaY;
+    scrollBy (-d * 320.0f);
+}
+
+juce::Rectangle<float> RackStrip::arrowRect (bool right) const
+{
+    const float s = 28.0f, cy = (float) getHeight() * 0.5f;
+    return { right ? (float) getWidth() - s - 2.0f : 2.0f, cy - s * 0.5f, s, s };
+}
+
+bool RackStrip::arrowVisible (bool right) const
+{
+    if (shown <= kBaseSlots) return false;
+    return right ? scrollTarget < maxScroll() - 0.5f : scrollTarget > 0.5f;
+}
+
 juce::Rectangle<float> RackStrip::cardRect (int pos) const
 {
-    const float w = ((float) getWidth() - kGap * (float) (kSlots - 1)) / (float) kSlots;
-    return { (w + kGap) * (float) pos, 0.0f, w, (float) getHeight() };
+    const float w = cardWidth();
+    return { (w + kGap) * (float) pos - scrollX, 0.0f, w, (float) getHeight() };
 }
 
 juce::Rectangle<float> RackStrip::switchRect (int pos) const
@@ -71,9 +141,9 @@ juce::Rectangle<float> RackStrip::menuRect (int pos) const
 
 int RackStrip::posAt (juce::Point<float> p) const
 {
-    for (int k = 0; k < kSlots; ++k)
+    for (int k = 0; k < shown; ++k)
         if (cardRect (k).expanded (kGap * 0.5f, 0.0f).contains (p)) return k;
-    return p.x < 0 ? 0 : kSlots - 1;
+    return p.x < cardRect (0).getX() ? 0 : shown - 1;
 }
 
 int RackStrip::posOfSlot (int slot) const
@@ -101,7 +171,7 @@ void RackStrip::showMenu (int slot)
     m.addItem (2, juce::String ("OTT Stack") + midDot() + effectTagline (EffectType::OttStack), true, type == EffectType::OttStack);
     m.addSeparator();
     m.addItem (10, "Move left", pos > 0);
-    m.addItem (11, "Move right", pos < kSlots - 1);
+    m.addItem (11, "Move right", pos < shown - 1);
     int emptySlot = -1;
     for (int k = 0; k < kSlots && emptySlot < 0; ++k)
     {
@@ -140,11 +210,21 @@ void RackStrip::showMenu (int slot)
 void RackStrip::mouseMove (const juce::MouseEvent& e)
 {
     const int h = posAt (e.position);
-    if (h != hover) { hover = h; repaint(); }
+    const int a = arrowVisible (false) && arrowRect (false).contains (e.position) ? -1
+                : arrowVisible (true) && arrowRect (true).contains (e.position) ? 1 : 0;
+    if (h != hover || a != hoverArrow) { hover = h; hoverArrow = a; repaint(); }
 }
 
 void RackStrip::mouseDown (const juce::MouseEvent& e)
 {
+    // стрелки прокрутки — на страницу (4 места)
+    for (bool right : { false, true })
+        if (arrowVisible (right) && arrowRect (right).contains (e.position))
+        {
+            dragFrom = -1;
+            scrollBy ((right ? 1.0f : -1.0f) * (cardWidth() + kGap) * (float) kBaseSlots);
+            return;
+        }
     const int pos = posAt (e.position);
     if (! cardRect (pos).contains (e.position)) return;
     const int slot = proc.getOrder()[(size_t) pos];
@@ -168,6 +248,9 @@ void RackStrip::mouseDrag (const juce::MouseEvent& e)
     if (dragFrom < 0) return;
     if (! dragging && e.getDistanceFromDragStart() < 6) return;
     dragging = true;
+    // у края — прокрутка
+    if (e.position.x < 36.0f) scrollBy (-14.0f);
+    else if (e.position.x > (float) getWidth() - 36.0f) scrollBy (14.0f);
     dropPos = posAt (e.position);
     repaint();
 }
@@ -187,7 +270,9 @@ bool RackStrip::keyPressed (const juce::KeyPress& k)
     const bool move = k.getModifiers().isAltDown() || k.getModifiers().isCommandDown();
     auto select = [this] (int p)
     {
-        const int s = proc.getOrder()[(size_t) juce::jlimit (0, kSlots - 1, p)];
+        p = juce::jlimit (0, shown - 1, p);
+        const int s = proc.getOrder()[(size_t) p];
+        scrollToPos (p);
         selected = s;
         if (onSelect) onSelect (s);
         updateDescription();
@@ -195,7 +280,7 @@ bool RackStrip::keyPressed (const juce::KeyPress& k)
     };
     if (k.getKeyCode() == juce::KeyPress::leftKey)
     {
-        if (move) proc.moveSlot (pos, pos - 1);
+        if (move) { proc.moveSlot (pos, pos - 1); scrollToPos (pos - 1); }
         else select (pos - 1);
         updateDescription();
         repaint();
@@ -203,8 +288,8 @@ bool RackStrip::keyPressed (const juce::KeyPress& k)
     }
     if (k.getKeyCode() == juce::KeyPress::rightKey)
     {
-        if (move) proc.moveSlot (pos, pos + 1);
-        else select (pos + 1);
+        if (move && pos + 1 < shown) { proc.moveSlot (pos, pos + 1); scrollToPos (pos + 1); }
+        else if (! move) select (pos + 1);
         updateDescription();
         repaint();
         return true;
@@ -318,13 +403,14 @@ void RackStrip::paintCard (juce::Graphics& g, int pos)
 
 void RackStrip::paint (juce::Graphics& g)
 {
-    for (int k = 0; k < kSlots; ++k)
+    for (int k = 0; k < shown; ++k)
     {
+        if (cardRect (k).getRight() < -kGap || cardRect (k).getX() > (float) getWidth() + kGap) continue;
         if (dragging && k == dragFrom) g.setOpacity (0.55f);
         paintCard (g, k);
         g.setOpacity (1.0f);
         // между слотами: «›» — ход сигнала (Serial), «+» — выходы складываются (Parallel)
-        if (k < kSlots - 1)
+        if (k < shown - 1)
         {
             auto c = cardRect (k);
             const float cx = c.getRight() + kGap * 0.5f, cy = c.getCentreY();
@@ -353,6 +439,24 @@ void RackStrip::paint (juce::Graphics& g)
         const float x = juce::jlimit (1.0f, (float) getWidth() - 1.0f, dropPos > dragFrom ? c.getRight() + kGap * 0.5f : c.getX() - kGap * 0.5f);
         g.setColour (Colours::signal);
         g.fillRoundedRectangle (x - 1.0f, c.getY() + 6.0f, 2.0f, c.getHeight() - 12.0f, 1.0f);
+    }
+    // стрелки прокрутки: круг Surface с рамкой, шеврон Ink
+    for (bool right : { false, true })
+    {
+        if (! arrowVisible (right)) continue;
+        auto r = arrowRect (right);
+        g.setColour (Colours::surface);
+        g.fillEllipse (r);
+        g.setColour ((right ? 1 : -1) == hoverArrow ? Colours::ink.withAlpha (0.35f) : Colours::outline);
+        g.drawEllipse (r.reduced (0.5f), 1.0f);
+        const auto c = r.getCentre();
+        const float d = right ? -1.0f : 1.0f;
+        juce::Path chev;
+        chev.startNewSubPath (c.x + 2.5f * d, c.y - 5.0f);
+        chev.lineTo (c.x - 2.5f * d, c.y);
+        chev.lineTo (c.x + 2.5f * d, c.y + 5.0f);
+        g.setColour (Colours::ink);
+        g.strokePath (chev, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     }
 }
 } // namespace chroma

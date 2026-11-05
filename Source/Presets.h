@@ -16,6 +16,9 @@ struct FactoryPreset
 
 const std::vector<FactoryPreset>& factoryPresets();
 
+// После replaceState: параметры, которых нет в загруженном дереве (старый проект, меньше слотов), — к значению по умолчанию
+void resetMissingParams (juce::AudioProcessorValueTreeState& apvts, const juce::ValueTree& loaded);
+
 // Пресеты: фабричные и пользовательские (~/Music/chroma/Presets/*.chroma)
 class PresetManager
 {

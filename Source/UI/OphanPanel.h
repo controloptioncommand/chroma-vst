@@ -48,6 +48,7 @@ public:
     void refresh();                  // тип слота мог смениться; перерисовать значения
     void setStatus (const juce::String& s) { status.setText (s, juce::dontSendNotification); }
     void setAdvancedForTest (bool adv) { modeSwitch.setSelectedValue (adv ? 1 : 0); updateVisibility(); }
+    void updatePresetName();         // имя пресета эффекта (могло смениться пресетом rack, копией, шагом)
     std::function<void()> onSlotChanged;   // эффект добавлен
 
     void paint (juce::Graphics& g) override;
@@ -58,6 +59,10 @@ private:
     void updateVisibility();
     void layoutBody();
     void addEffect (EffectType t);
+    void showPresetMenu();
+    void savePreset();
+    juce::Rectangle<int> titleArea() const;
+    void layoutHead();
     void buildGrid();
     OphanAdvanced& adv();
 
@@ -79,6 +84,11 @@ private:
     DragValue driftRate { DragValue::Rate, "Drift rate" };
     juce::TextButton resetButton { "Reset to recipe" };
     juce::TextButton addOphan, addOtt;
+
+    // пресет эффекта: «‹ имя ›» в заголовке, как пресет rack в тулбаре
+    IconButton prevPreset { IconButton::Prev, "Previous effect preset" }, nextPreset { IconButton::Next, "Next effect preset" };
+    TextLinkButton presetName;
+    std::unique_ptr<juce::AlertWindow> saveWindow;
 
     juce::Rectangle<int> headArea, bodyArea, footArea, gridArea, shapeArea, addArea;
     int ottDividerX = 0;
