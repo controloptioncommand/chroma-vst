@@ -77,6 +77,13 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
 .algs { columns: 2; column-gap: 8mm; font-size: 9pt; }
 .algs div { break-inside: avoid; display: grid; grid-template-columns: 7mm 30mm 1fr; padding: .9mm 0; border-bottom: 1px solid var(--outline); }
 .algs .mono { color: var(--ink2); font-size: 8.3pt; }
+
+/* Credits — как страница Credits в плагине: автор Ink жирным, эффект Ink 2 */
+.credits { list-style: none; padding: 0; margin: 8mm 0 0; }
+.credits li { padding: 4mm 0; border-bottom: 1px solid var(--outline); break-inside: avoid; }
+.credits .line { font-size: 15pt; line-height: 1.3; }
+.credits .fx { color: var(--ink2); }
+.credits p { margin: 1.5mm 0 0; color: var(--ink2); }
 </style>
 </head>
 <body>
@@ -105,6 +112,7 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <li><span class="mono">11</span>Пресеты и настройки</li>
     <li><span class="mono">12</span>Рецепты</li>
     <li><span class="mono">13</span>Вопросы и ответы</li>
+    <li><span class="mono">14</span>Credits</li>
   </ul>
 
   <h2 style="margin-top: 10mm"><span class="n">01</span>Что такое chrōma</h2>
@@ -334,7 +342,7 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   </ul>
   <p>Что кубику можно менять — настройки → <b>Randomizer</b>, галочки по пунктам выше. Выбор хранится в настройках плагина и действует во всех проектах. Кубик никогда не трогает тип эффекта, пустые слоты, On, режим Serial / Parallel, громкость Out и Output у OTT Stack. Автоматизация хоста видит изменения как обычные движения ручек.</p>
   <h3>Credits</h3>
-  <p>Настройки → <b>Credits</b> — отдельная страница: кто вдохновил эффекты. @rosco.moon — Ophan, Ableton — OTT Stack. Назад — маленький логотип или Escape.</p>
+  <p>Настройки → <b>Credits</b> — отдельная страница: кто вдохновил эффекты. Назад — маленький логотип или Escape. Тот же список — в разделе 14.</p>
   <h3>Темы</h3>
   <p><b>Oxygen</b> — светлая, <b>Rubber</b> — тёмная или по системе: настройки → Appearance.</p>
   <figure class="small" style="margin-top:2mm"><img src="img/main_oxygen.jpg" style="max-width: 78mm"><figcaption>Светлая тема Oxygen.</figcaption></figure>
@@ -372,6 +380,17 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <p>Выходы слотов усредняются: при двух слотах каждый звучит наполовину. Нужен один эффект сильнее — выключите остальные или верните Serial.</p>
   <h3>Где другие эффекты</h3>
   <p>chrōma задумана как rack, эффекты будут добавляться в следующих версиях. Слоты и пресеты из v1 останутся рабочими.</p>
+</section>
+
+<section>
+  <h2><span class="n">14</span>Credits</h2>
+  <p class="lead">Кто вдохновил эффекты chrōma. Тот же список — в плагине: настройки → Credits.</p>
+  <ul class="credits">
+    <li><div class="line"><b>@rosco.moon</b> <span class="fx">— Ophan</span></div>
+      <p>Рецепт «Biblically accurate EQ»: EQ Eight в режиме L/R и пять LFO в Audio Effect Rack. Частоты, Q, маппинги и скорости LFO — оттуда.</p></li>
+    <li><div class="line"><b>Ableton</b> <span class="fx">— OTT Stack</span></div>
+      <p>Пресет OTT устройства Multiband Dynamics: кроссоверы, пороги, ratio, атака и восстановление по полосам.</p></li>
+  </ul>
 </section>
 
 </body>
