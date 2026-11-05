@@ -6,10 +6,10 @@ namespace chroma
 // Версия и дата — показываются на странице About
 namespace AboutInfo
 {
-    inline const char* version = "v1";
+    inline const char* version = "v1.01";
     inline const char* repoUrl = "https://github.com/controloptioncommand/chroma-vst";
     inline const char* authorUrl = "https://t.me/nothiingnothingnothing";
-    inline const char* date = "4th November 2026";
+    inline const char* date = "5th November 2026";
     inline juce::String word() { return productName(); }
     inline const char* author = "made by nnn";
 }

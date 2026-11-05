@@ -84,7 +84,7 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
 <div class="cover">
   <div class="grid"></div>
   <div class="logo">chrōma</div>
-  <div class="sub">Руководство пользователя · <b>v1</b></div>
+  <div class="sub">Руководство пользователя · <b>v1.01</b></div>
   <div class="shot"><img src="img/main.jpg"></div>
   <div class="foot"><span>effect rack · VST3 · AU · macOS</span><span>made by nnn</span></div>
 </div>
@@ -97,13 +97,14 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <li><span class="mono">03</span>Первый звук за минуту</li>
     <li><span class="mono">04</span>Окно плагина</li>
     <li><span class="mono">05</span>Rack: слоты и порядок</li>
-    <li><span class="mono">06</span>Главный вид: Curves и Scope</li>
+    <li><span class="mono">06</span>Главный вид: Curves, Stack и Scope</li>
     <li><span class="mono">07</span>Ophan: как устроен</li>
     <li><span class="mono">08</span>Ophan: Macro</li>
     <li><span class="mono">09</span>Ophan: Advanced</li>
-    <li><span class="mono">10</span>Пресеты и настройки</li>
-    <li><span class="mono">11</span>Рецепты</li>
-    <li><span class="mono">12</span>Вопросы и ответы</li>
+    <li><span class="mono">10</span>OTT Stack</li>
+    <li><span class="mono">11</span>Пресеты и настройки</li>
+    <li><span class="mono">12</span>Рецепты</li>
+    <li><span class="mono">13</span>Вопросы и ответы</li>
   </ul>
 
   <h2 style="margin-top: 10mm"><span class="n">01</span>Что такое chrōma</h2>
@@ -111,9 +112,10 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <ul>
     <li>Цепочка из <b>четырёх слотов</b>: сигнал идёт слева направо, порядок меняется перетаскиванием.</li>
     <li>У каждого слота — переключатель <b>On</b>, <b>Mix</b> и ручки эффекта. Автоматизация привязана к слоту и едет вместе с ним.</li>
-    <li>Первый эффект — <b>Ophan</b>, «Biblically accurate EQ»: EQ Eight в режиме L/R, семь узких колоколов на канал и пять LFO, которые гоняют их по спектру и по стереобазе.</li>
-    <li>Живые кривые левого и правого канала поверх спектра выхода.</li>
-    <li>10 фабричных пресетов. Весь rack сохраняется в проекте Ableton.</li>
+    <li><b>Ophan</b>, «Biblically accurate EQ»: EQ Eight в режиме L/R, семь узких колоколов на канал и пять LFO, которые гоняют их по спектру и по стереобазе.</li>
+    <li><b>OTT Stack</b>: от 2 до 40 OTT подряд одной ручкой, громкость после стопки — отдельной.</li>
+    <li>Живые кривые Ophan и карта ступеней OTT поверх спектра выхода.</li>
+    <li>15 фабричных пресетов. Весь rack сохраняется в проекте Ableton.</li>
   </ul>
   <div class="note"><b>Как читать.</b> Названия ручек и кнопок даны так, как они подписаны в плагине (по-английски). Диапазоны — моноширинным шрифтом.</div>
 </section>
@@ -151,8 +153,8 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <tr><th style="width:34mm">Зона</th><th>Что там</th></tr>
     <tr><td>Тулбар</td><td>Логотип (клик — страница About), пресет <span class="mono">‹ имя ›</span>, мини-спектрограмма, уровни In и Out, настройки.</td></tr>
     <tr><td>Rack</td><td>Четыре слота цепочки. Выбранный слот обведён.</td></tr>
-    <tr><td>Главный вид</td><td>Curves — кривые выбранного слота поверх спектра, Scope — волна на выходе.</td></tr>
-    <tr><td>Панель</td><td>Ручки выбранного слота: вкладки Macro и Advanced. Внизу — On и CPU.</td></tr>
+    <tr><td>Главный вид</td><td>Curves (Ophan) или Stack (OTT Stack) — что делает выбранный слот, поверх спектра; Scope — волна на выходе.</td></tr>
+    <tr><td>Панель</td><td>Ручки выбранного слота (у Ophan — вкладки Macro и Advanced). Внизу — On и CPU.</td></tr>
   </table>
   <h3>Тулбар</h3>
   <figure><img src="img/toolbar.jpg"></figure>
@@ -173,10 +175,10 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <table>
     <tr><th style="width:40mm">Действие</th><th>Как</th></tr>
     <tr><td>Выбрать слот</td><td>Клик по карточке. Панель внизу и главный вид показывают выбранный слот.</td></tr>
-    <tr><td>Добавить эффект</td><td>Клик по пустой карточке или кнопка Add Ophan в панели.</td></tr>
+    <tr><td>Добавить эффект</td><td>Клик по пустой карточке — меню с эффектами, или кнопка эффекта в панели пустого слота. Сменить эффект — меню ⋯.</td></tr>
     <tr><td>Включить / выключить</td><td>Переключатель на карточке или On в подвале панели. Выключенный слот пропускает звук без изменений.</td></tr>
     <tr><td>Переставить</td><td>Перетащите карточку: оранжевая риска показывает, куда она встанет. Или меню ⋯ → Move left / Move right.</td></tr>
-    <tr><td>Дублировать</td><td>Меню ⋯ → Duplicate: копия со всеми ручками и Advanced встаёт сразу за оригиналом (нужен свободный слот).</td></tr>
+    <tr><td>Дублировать</td><td>Меню ⋯ → Duplicate: копия со всеми ручками (у Ophan — и с Advanced) встаёт сразу за оригиналом (нужен свободный слот).</td></tr>
     <tr><td>Очистить</td><td>Меню ⋯ → Clear slot.</td></tr>
   </table>
   <h3>С клавиатуры</h3>
@@ -185,11 +187,12 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
 </section>
 
 <section>
-  <h2><span class="n">06</span>Главный вид: Curves и Scope</h2>
+  <h2><span class="n">06</span>Главный вид: Curves, Stack и Scope</h2>
   <figure style="margin-top:0"><img src="img/view_curves.jpg"><figcaption>Curves: синяя кривая — левый канал, розовая — правый; кружки — полосы 2–8, как в EQ Eight.</figcaption></figure>
   <ul>
     <li><b>Curves</b> — суммарная АЧХ выбранного слота для левого и правого канала, с учётом Low cut и Mix. Шкала <span class="mono">±30 dB</span>, пунктир через 12 dB. Серая заливка — спектр выхода.</li>
     <li>Слева сверху — номер слота и текущая скорость LFO с учётом Drift.</li>
+    <li><b>Stack</b> — у слота OTT Stack вместо Curves: карта ступеней, см. раздел 10.</li>
     <li><b>Scope</b> — волна на выходе, цвет по громкости.</li>
   </ul>
   <figure><img src="img/view_scope.jpg"><figcaption>Scope.</figcaption></figure>
@@ -252,7 +255,27 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
 </section>
 
 <section>
-  <h2><span class="n">10</span>Пресеты и настройки</h2>
+  <h2><span class="n">10</span>OTT Stack</h2>
+  <p class="lead">Приём «поставить OTT на OTT» одним эффектом: от 2 до 40 OTT подряд, главная ручка — их количество.</p>
+  <figure class="mid" style="margin-top:0"><img src="img/panel_ott.jpg" style="max-width: 92mm"><figcaption>Панель OTT Stack: слева главная ручка Count, справа второстепенные.</figcaption></figure>
+  <h3>Один OTT</h3>
+  <p>Как пресет OTT устройства Multiband Dynamics в Ableton: три полосы (кроссоверы <span class="mono">88.3 Hz</span> и <span class="mono">2.5 kHz</span>), в каждой — сжатие вниз выше верхнего порога (<span class="mono">1:66.7</span>) и вверх ниже нижнего (<span class="mono">4.17:1</span>), затем подъём полосы (<span class="mono">+10.3 / +5.7 / +10.3 dB</span>). Атака и восстановление — <span class="mono">47.8 / 22.4 / 13.5 ms</span> и <span class="mono">282 / 282 / 132 ms</span> по полосам. Каналы сжимаются вместе.</p>
+  <table>
+    <tr><th style="width:26mm">Ручка</th><th style="width:30mm">Диапазон</th><th>Что делает</th></tr>
+    <tr><td>Count</td><td class="r">×2 … ×40</td><td>Главная: сколько OTT подряд. По умолчанию ×8. Меняется плавно — новые OTT въезжают по одному.</td></tr>
+    <tr><td>Depth</td><td class="r">0–100%</td><td>Параллельная смесь каждого OTT, как Depth у Xfer OTT. 0 — стопка ничего не делает.</td></tr>
+    <tr><td>Time</td><td class="r">10–1000%</td><td>Множитель атаки и восстановления. Меньше — быстрее и «злее», больше — плавнее.</td></tr>
+    <tr><td>Upward</td><td class="r">0–100%</td><td>Сколько поднимать тихое.</td></tr>
+    <tr><td>Downward</td><td class="r">0–100%</td><td>Сколько сжимать громкое.</td></tr>
+    <tr><td>Output</td><td class="r">−48…+12 dB</td><td>Громкость после всей стопки. По умолчанию <span class="mono">−3 dB</span>.</td></tr>
+    <tr><td>Mix</td><td class="r">0–100%</td><td>Сухой / обработанный сигнал слота.</td></tr>
+  </table>
+  <figure class="mid" style="margin: 2mm 0 3mm"><img src="img/view_stack.jpg" style="max-width: 92mm"><figcaption>Вкладка Stack: строка — один OTT (первый сверху), три столбца — полосы. Синее — подъём тихого, розовое — сжатие громкого; чем насыщеннее, тем сильнее.</figcaption></figure>
+  <div class="note"><b>Что добавлено сверх Ableton.</b> Чтобы 40 OTT подряд оставались музыкой: у каждого OTT мягкий потолок <span class="mono">+6 dBFS</span> (ниже 0 dBFS звук не трогается) — иначе атаки копят по +10 дБ на каждой ступени. Ниже <span class="mono">−84 dBFS</span> стопка ничего не поднимает — шум и хвосты не вырастают до громкости музыки; цифровая тишина остаётся тишиной.</div>
+</section>
+
+<section>
+  <h2><span class="n">11</span>Пресеты и настройки</h2>
   <table>
     <tr><th style="width:44mm">Пресет</th><th>Что это</th></tr>
     <tr><td>Biblically Accurate</td><td>Рецепт из видео один в один.</td></tr>
@@ -265,27 +288,34 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <tr><td>Wheels Within Wheels</td><td>Два Ophan: медленный и быстрый поверх.</td></tr>
     <tr><td>Six Wings</td><td>Два Ophan: широкий и очень узкий.</td></tr>
     <tr><td>Be Not Afraid</td><td>Всё на максимум.</td></tr>
+    <tr><td>Double OTT</td><td>OTT ×2 — классика.</td></tr>
+    <tr><td>Tower of Babel</td><td>OTT ×40.</td></tr>
+    <tr><td>Gentle Glue</td><td>OTT ×4, Depth 40%, Mix 70% — мягко склеивает.</td></tr>
+    <tr><td>Squash Choir</td><td>Ophan → OTT ×12: стопка вытягивает колокола.</td></tr>
+    <tr><td>Angel Crush</td><td>OTT ×24 → Ophan.</td></tr>
   </table>
   <p>Пресет хранит весь rack: типы и ручки слотов, порядок и Advanced. Громкость Out пресет не меняет. Свои пресеты — меню пресета → <b>Save preset…</b>, лежат в <code>~/Music/chroma/Presets/*.chroma</code>.</p>
   <h3>Темы</h3>
   <p><b>Oxygen</b> — светлая, <b>Rubber</b> — тёмная или по системе: настройки → Appearance.</p>
-  <figure class="small"><img src="img/main_oxygen.jpg"><figcaption>Светлая тема Oxygen.</figcaption></figure>
+  <figure class="small" style="margin-top:2mm"><img src="img/main_oxygen.jpg" style="max-width: 78mm"><figcaption>Светлая тема Oxygen.</figcaption></figure>
 </section>
 
 <section>
-  <h2><span class="n">11</span>Рецепты</h2>
+  <h2><span class="n">12</span>Рецепты</h2>
   <h3>Пэд, который дышит</h3>
   <p>Biblically Accurate, Rate <span class="mono">0.3–0.5 Hz</span>, Depth <span class="mono">120%</span>, Mix <span class="mono">60–80%</span>. Колокола медленно проплывают по гармоникам аккорда.</p>
   <h3>Вокал «из телефона ангела»</h3>
   <p>Low cut <span class="mono">500–800 Hz</span>, Q <span class="mono">150%</span>, Rate <span class="mono">2–4 Hz</span>, Spread <span class="mono">100%</span>. Добавьте второй слот с Rate <span class="mono">0.2 Hz</span> и Mix <span class="mono">40%</span>.</p>
   <h3>Моно-совместимо</h3>
   <p>Spread <span class="mono">0</span>: эффект двигается одинаково в обоих каналах и не пропадает при сведении в моно.</p>
+  <h3>OTT до или после</h3>
+  <p>OTT Stack после Ophan (пресет Squash Choir) вытягивает каждый колокол до громкости остального — эффект становится резче. До Ophan (Angel Crush) — Ophan режет уже сплющенный звук. Порядок — перетаскиванием карточек.</p>
   <h3>Свой рецепт</h3>
   <p>Во вкладке Advanced сузьте все Freq from / to к одной октаве (например, <span class="mono">800 Hz – 1.6 kHz</span>) — колокола будут «роиться» в одной зоне, как формантный фильтр.</p>
 </section>
 
 <section>
-  <h2><span class="n">12</span>Вопросы и ответы</h2>
+  <h2><span class="n">13</span>Вопросы и ответы</h2>
   <h3>Стало громче или тише</h3>
   <p>При Depth 200% узкие колокола поднимают отдельные гармоники до <span class="mono">+18 dB</span> (полоса 8 — до <span class="mono">+30 dB</span>), а срез низа убирает басы. Подровняйте Out или уменьшите Depth. Выше 0 dBFS выход не поднимется.</p>
   <h3>Свистит</h3>
@@ -294,6 +324,8 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <p>Каналы обрабатываются по-разному. Сведите Spread ближе к 0.</p>
   <h3>Есть ли задержка</h3>
   <p>Нет: фильтры работают без задержки, хосту ничего компенсировать не нужно.</p>
+  <h3>OTT Stack грузит процессор</h3>
+  <p>40 OTT подряд — около 12% одного ядра (каждый OTT — 7 фильтров на канал). Нужна лёгкость — уменьшите Count.</p>
   <h3>Где другие эффекты</h3>
   <p>chrōma задумана как rack, эффекты будут добавляться в следующих версиях. Слоты и пресеты из v1 останутся рабочими.</p>
 </section>

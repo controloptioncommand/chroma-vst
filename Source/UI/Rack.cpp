@@ -41,9 +41,10 @@ void RackStrip::updateDescription()
     setDescription (d + " Arrow keys select, Option+arrows move, Space toggles, Return opens the menu.");
 }
 
-void RackStrip::update (const std::array<OphanSnapshot, kSlots>& s, double sr)
+void RackStrip::update (const std::array<OphanSnapshot, kSlots>& s, const std::array<OttSnapshot, kSlots>& o, double sr)
 {
     snaps = s;
+    ottSnaps = o;
     sampleRate = sr;
     updateDescription();
     repaint();
@@ -96,6 +97,7 @@ void RackStrip::showMenu (int slot)
     juce::PopupMenu m;
     m.addSectionHeader ("Slot " + juce::String (pos + 1));
     m.addItem (1, juce::String ("Ophan") + midDot() + effectTagline (EffectType::Ophan), true, type == EffectType::Ophan);
+    m.addItem (2, juce::String ("OTT Stack") + midDot() + effectTagline (EffectType::OttStack), true, type == EffectType::OttStack);
     m.addSeparator();
     m.addItem (10, "Move left", pos > 0);
     m.addItem (11, "Move right", pos < kSlots - 1);
@@ -113,9 +115,10 @@ void RackStrip::showMenu (int slot)
     {
         if (safe == nullptr || r == 0) return;
         auto& pr = safe->proc;
-        if (r == 1)
+        if (r == 1 || r == 2)
         {
-            if (pr.getSlotType (slot) != EffectType::Ophan) { pr.clearSlot (slot); pr.setSlotType (slot, EffectType::Ophan); }
+            const auto t = r == 1 ? EffectType::Ophan : EffectType::OttStack;
+            if (pr.getSlotType (slot) != t) { pr.clearSlot (slot); pr.setSlotType (slot, t); }
         }
         else if (r == 10) pr.moveSlot (pos, pos - 1);
         else if (r == 11) pr.moveSlot (pos, pos + 1);
@@ -247,7 +250,7 @@ void RackStrip::paintCard (juce::Graphics& g, int pos)
 
     g.setFont (LnF::font (LnF::Type::headline, true));
     g.setColour (on ? Colours::ink : Colours::ink2);
-    g.drawText (effectNames()[(int) type], head.removeFromLeft (60.0f), juce::Justification::centredLeft);
+    g.drawText (effectNames()[(int) type], head.removeFromLeft (110.0f), juce::Justification::centredLeft);
 
     // On (Live) и «⋯»
     LnF::drawSwitch (g, switchRect (pos), on, Colours::live);
@@ -264,7 +267,23 @@ void RackStrip::paintCard (juce::Graphics& g, int pos)
     g.setColour (Colours::well);
     g.fillRoundedRectangle (in, 8.0f);
     const auto& sn = snaps[(size_t) slot];
-    if (on && sn.live)
+    const auto& os = ottSnaps[(size_t) slot];
+    if (type == EffectType::OttStack && on && os.live)
+    {
+        // миниатюра карты ступеней: три полосы, ступени сверху вниз
+        auto a = in.reduced (8.0f, 5.0f);
+        const int n = juce::jlimit (1, OttRecipe::kMaxStages, (int) std::ceil (os.count - 1e-3f));
+        const float rowH = a.getHeight() / (float) n, colW = a.getWidth() / 3.0f;
+        for (int st = 0; st < n; ++st)
+            for (int b = 0; b < OttRecipe::kBands; ++b)
+            {
+                const float gdb = os.gain[st][b];
+                const float t = juce::jlimit (0.0f, 1.0f, std::abs (gdb) / 24.0f);
+                g.setColour (Colours::well.interpolatedWith (gdb >= 0.0f ? Colours::carrier : Colours::modulator, 0.12f + 0.88f * t));
+                g.fillRect (juce::Rectangle<float> (a.getX() + colW * (float) b + 2.0f, a.getY() + rowH * (float) st, colW - 4.0f, juce::jmax (1.0f, rowH - (rowH > 3.0f ? 1.0f : 0.0f))));
+            }
+    }
+    else if (type == EffectType::Ophan && on && sn.live)
     {
         auto a = in.reduced (6.0f, 4.0f);
         for (int side : { 1, 0 })
@@ -292,8 +311,8 @@ void RackStrip::paintCard (juce::Graphics& g, int pos)
     g.setFont (LnF::mono (LnF::Type::footnote));
     g.setColour (Colours::ink2);
     g.drawText ("Mix " + juce::String (juce::roundToInt (raw (proc, slot, ParamId::mix))) + "%", foot, juce::Justification::centredLeft);
-    auto* rateParam = proc.apvts.getParameter (slotParam (slot, ParamId::rate));
-    g.drawText (rateParam->getCurrentValueAsText(), foot, juce::Justification::centredRight);
+    auto* rightParam = proc.apvts.getParameter (slotParam (slot, type == EffectType::OttStack ? ParamId::count : ParamId::rate));
+    g.drawText (rightParam->getCurrentValueAsText(), foot, juce::Justification::centredRight);
 }
 
 void RackStrip::paint (juce::Graphics& g)

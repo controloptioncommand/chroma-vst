@@ -62,6 +62,7 @@ class ParamKnob : public juce::Component
 public:
     explicit ParamKnob (const juce::String& label);
     void attach (APVTS& state, const juce::String& paramId);
+    void setBig (bool b);   // главная ручка эффекта: крупнее круг, дуга 4 px, подписи крупнее
     void resized() override;
     juce::Slider slider;
     juce::Label label, value;
@@ -69,6 +70,7 @@ public:
 private:
     void updateValue();
     std::unique_ptr<APVTS::SliderAttachment> attachment;
+    bool big = false;
 };
 
 class ParamToggle : public juce::ToggleButton

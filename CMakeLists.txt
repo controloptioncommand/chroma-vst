@@ -46,6 +46,7 @@ set(CHROMA_SOURCES
     Source/Params.cpp
     Source/Presets.cpp
     Source/DSP/Ophan.cpp
+    Source/DSP/OttStack.cpp
     Source/UI/LookAndFeel.cpp
     Source/UI/Widgets.cpp
     Source/UI/Views.cpp

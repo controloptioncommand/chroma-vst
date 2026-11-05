@@ -70,6 +70,9 @@ ChromaProcessor::ChromaProcessor()
         p.rate = get (ParamId::rate);  p.drift = get (ParamId::drift);  p.depth = get (ParamId::depth);
         p.q = get (ParamId::q);        p.spread = get (ParamId::spread); p.lowCut = get (ParamId::lowCut);
         p.shape = get (ParamId::shape);
+        p.count = get (ParamId::count); p.ottDepth = get (ParamId::ottDepth); p.time = get (ParamId::time);
+        p.upward = get (ParamId::upward); p.downward = get (ParamId::downward); p.trim = get (ParamId::trim);
+        ott[(size_t) s].prepare (sr);
         adv[(size_t) s].resetToRecipe();
         ophan[(size_t) s].prepare (sr, (uint32_t) (s + 1));
     }
@@ -86,7 +89,11 @@ bool ChromaProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 void ChromaProcessor::prepareToPlay (double sampleRate, int)
 {
     sr = sampleRate > 0 ? sampleRate : 48000.0;
-    for (int s = 0; s < kSlots; ++s) ophan[(size_t) s].prepare (sr, (uint32_t) (s + 1));
+    for (int s = 0; s < kSlots; ++s)
+    {
+        ophan[(size_t) s].prepare (sr, (uint32_t) (s + 1));
+        ott[(size_t) s].prepare (sr);
+    }
     outGainNow = juce::Decibels::decibelsToGain (outParam->load());
 }
 
@@ -129,7 +136,8 @@ void ChromaProcessor::moveSlot (int fromPos, int toPos)
 
 void ChromaProcessor::clearSlot (int slot)
 {
-    for (auto* id : { ParamId::on, ParamId::mix, ParamId::rate, ParamId::drift, ParamId::depth, ParamId::q, ParamId::spread, ParamId::lowCut, ParamId::shape })
+    for (auto* id : { ParamId::on, ParamId::mix, ParamId::rate, ParamId::drift, ParamId::depth, ParamId::q, ParamId::spread, ParamId::lowCut, ParamId::shape,
+                     ParamId::count, ParamId::ottDepth, ParamId::time, ParamId::upward, ParamId::downward, ParamId::trim })
         if (auto* p = apvts.getParameter (slotParam (slot, id))) p->setValueNotifyingHost (p->getDefaultValue());
     setSlotType (slot, EffectType::Empty);
     resetAdvanced (slot);
@@ -138,7 +146,8 @@ void ChromaProcessor::clearSlot (int slot)
 void ChromaProcessor::copySlot (int from, int to)
 {
     if (from == to) return;
-    for (auto* id : { ParamId::type, ParamId::on, ParamId::mix, ParamId::rate, ParamId::drift, ParamId::depth, ParamId::q, ParamId::spread, ParamId::lowCut, ParamId::shape })
+    for (auto* id : { ParamId::type, ParamId::on, ParamId::mix, ParamId::rate, ParamId::drift, ParamId::depth, ParamId::q, ParamId::spread, ParamId::lowCut, ParamId::shape,
+                     ParamId::count, ParamId::ottDepth, ParamId::time, ParamId::upward, ParamId::downward, ParamId::trim })
         if (auto* src = apvts.getParameter (slotParam (from, id)))
             if (auto* dst = apvts.getParameter (slotParam (to, id))) dst->setValueNotifyingHost (src->getValue());
     auto& a = adv[(size_t) from];
@@ -255,14 +264,26 @@ void ChromaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         const auto& p = sp[(size_t) s];
         const int type = juce::roundToInt (p.type->load());
         const bool on = p.on->load() > 0.5f;
-        if (type != lastType[(size_t) s] || (on && ! lastOn[(size_t) s])) ophan[(size_t) s].reset();
+        if (type != lastType[(size_t) s] || (on && ! lastOn[(size_t) s])) { ophan[(size_t) s].reset(); ott[(size_t) s].reset(); }
         lastType[(size_t) s] = type;
         lastOn[(size_t) s] = on;
-        if (type != (int) EffectType::Ophan || ! on)
+        if (type != (int) EffectType::Ophan || ! on) views[(size_t) s].live.store (false, std::memory_order_relaxed);
+        if (type != (int) EffectType::OttStack || ! on) ottViews[(size_t) s].live.store (false, std::memory_order_relaxed);
+        if (! on) continue;
+        if (type == (int) EffectType::OttStack)
         {
-            views[(size_t) s].live.store (false, std::memory_order_relaxed);
+            OttParams tp;
+            tp.count = p.count->load();
+            tp.depth = p.ottDepth->load() / 100.0f;
+            tp.time = p.time->load() / 100.0f;
+            tp.upward = p.upward->load() / 100.0f;
+            tp.downward = p.downward->load() / 100.0f;
+            tp.outputDb = p.trim->load();
+            tp.mix = p.mix->load() / 100.0f;
+            ott[(size_t) s].process (L, R, n, tp, &ottViews[(size_t) s]);
             continue;
         }
+        if (type != (int) EffectType::Ophan) continue;
         OphanParams op;
         op.rate = p.rate->load();
         op.drift = p.drift->load() / 100.0f;

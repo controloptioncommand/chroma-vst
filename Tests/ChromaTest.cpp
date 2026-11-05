@@ -290,6 +290,131 @@ int main (int argc, char** argv)
         CHECK (! ms.nan && ms.peak <= 1.0f && ms.rms > 0.003f, "mono processing");
     }
 
+    // ---------------------------------------------------------------- OTT Stack
+    std::cout << "ott stack\n";
+    {
+        const double sr = 48000.0;
+        auto ottProc = [&] (ChromaProcessor& p)
+        {
+            p.prepareToPlay (sr, kBlock);
+            p.setSlotType (0, EffectType::OttStack);
+        };
+        auto rmsDb = [] (const juce::AudioBuffer<float>& b, int from)
+        {
+            double sum = 0;
+            int cnt = 0;
+            for (int c = 0; c < b.getNumChannels(); ++c)
+                for (int i = from; i < b.getNumSamples(); ++i) { sum += (double) b.getSample (c, i) * b.getSample (c, i); ++cnt; }
+            return (float) (10.0 * std::log10 (std::max (1e-20, sum / std::max (1, cnt))));
+        };
+        {
+            // Depth 0: 40 ступеней — только кроссоверы, сумма полос ровная
+            ChromaProcessor p;
+            ottProc (p);
+            setParam (p, slotParam (0, ParamId::count), 40.0f);
+            setParam (p, slotParam (0, ParamId::ottDepth), 0.0f);
+            setParam (p, slotParam (0, ParamId::trim), 0.0f);
+            const auto in = testSignal (sr, 3.0, 0.25f, false);
+            auto out = run (p, in);
+            const float d = rmsDb (out, (int) sr) - rmsDb (in, (int) sr);
+            CHECK (std::abs (d) < 0.3f, "OTT depth 0: crossovers sum flat (" << d << " dB)");
+            for (double f : { 40.0, 88.3, 300.0, 2500.0, 9000.0 })
+            {
+                juce::AudioBuffer<float> sine (2, (int) sr);
+                for (int i = 0; i < sine.getNumSamples(); ++i)
+                    for (int c = 0; c < 2; ++c) sine.setSample (c, i, 0.25f * (float) std::sin (2.0 * 3.141592653589793 * f * i / sr));
+                auto so = run (p, sine);
+                const float g = rmsDb (so, (int) sr / 2) - rmsDb (sine, (int) sr / 2);
+                CHECK (std::abs (g) < 0.2f, "OTT depth 0: flat at " << f << " Hz (" << g << " dB)");
+            }
+        }
+        {
+            // громкость по числу ступеней (Output 0 dB) — для выбора Output по умолчанию
+            const auto music = demoSignal (sr, 6.0);
+            juce::String line = "  rms in " + juce::String (rmsDb (music, (int) sr), 1) + " dB; out:";
+            for (int c : { 2, 4, 8, 16, 24, 40 })
+            {
+                ChromaProcessor p;
+                ottProc (p);
+                setParam (p, slotParam (0, ParamId::count), (float) c);
+                setParam (p, slotParam (0, ParamId::trim), 0.0f);
+                auto out = run (p, music);
+                checkAudio (out, "OTT x" + juce::String (c));
+                line << " x" << c << " " << juce::String (rmsDb (out, (int) sr), 1);
+            }
+            std::cout << line << "\n";
+        }
+        {
+            // сжимает: громкая и тихая половины сближаются
+            ChromaProcessor p;
+            ottProc (p);
+            setParam (p, slotParam (0, ParamId::count), 4.0f);
+            auto in = testSignal (sr, 6.0, 0.5f, false);
+            for (int c = 0; c < 2; ++c)
+                for (int i = (int) (3 * sr); i < in.getNumSamples(); ++i) in.setSample (c, i, in.getSample (c, i) * 0.02f);   // −34 дБ
+            auto out = run (p, in);
+            auto part = [&] (const juce::AudioBuffer<float>& b, double t0, double t1)
+            {
+                juce::AudioBuffer<float> x (2, (int) ((t1 - t0) * sr));
+                for (int c = 0; c < 2; ++c) x.copyFrom (c, 0, b, c, (int) (t0 * sr), x.getNumSamples());
+                return rmsDb (x, 0);
+            };
+            const float inGap = part (in, 1.5, 3.0) - part (in, 4.5, 6.0), outGap = part (out, 1.5, 3.0) - part (out, 4.5, 6.0);
+            std::cout << "  loud/quiet gap: in " << juce::String (inGap, 1) << " dB, out " << juce::String (outGap, 1) << " dB\n";
+            CHECK (outGap < inGap * 0.5f, "OTT compresses the loud/quiet gap");
+        }
+        {
+            // тишина остаётся тишиной, очень тихий шум не раздувается
+            ChromaProcessor p;
+            ottProc (p);
+            setParam (p, slotParam (0, ParamId::count), 40.0f);
+            setParam (p, slotParam (0, ParamId::trim), 0.0f);
+            juce::AudioBuffer<float> zero (2, (int) sr * 2);
+            zero.clear();
+            auto out = run (p, zero);
+            CHECK (stats (out).peak == 0.0f, "OTT: silence stays silent");
+            juce::AudioBuffer<float> hiss (2, (int) sr * 3);
+            juce::Random rng (11);
+            for (int c = 0; c < 2; ++c) for (int i = 0; i < hiss.getNumSamples(); ++i) hiss.setSample (c, i, (rng.nextFloat() * 2 - 1) * 3e-5f);   // ≈ −90 дБ
+            auto ho = run (p, hiss);
+            const float lvl = rmsDb (ho, (int) sr);
+            CHECK (lvl < -60.0f, "OTT x40: −90 dB hiss is not blown up (" << lvl << " dB)");
+            // Mix 0 — сухой сигнал бит-в-бит
+            setParam (p, slotParam (0, ParamId::mix), 0.0f);
+            run (p, testSignal (sr, 0.5));
+            const auto in2 = testSignal (sr, 1.0);
+            CHECK (maxDiff (run (p, in2), in2) == 0.0f, "OTT mix 0 → dry");
+        }
+        {
+            // крайние значения, смена числа ступеней на ходу, громкий вход
+            ChromaProcessor p;
+            ottProc (p);
+            setParam (p, slotParam (0, ParamId::time), 10.0f);
+            setParam (p, slotParam (0, ParamId::trim), 12.0f);
+            auto a = run (p, testSignal (sr, 1.0, 0.95f, false));
+            setParam (p, slotParam (0, ParamId::count), 40.0f);
+            setParam (p, slotParam (0, ParamId::time), 1000.0f);
+            auto b = run (p, testSignal (sr, 1.0, 0.95f, false));
+            setParam (p, slotParam (0, ParamId::count), 2.0f);
+            setParam (p, slotParam (0, ParamId::upward), 0.0f);
+            auto c = run (p, testSignal (sr, 1.0, 0.95f, false));
+            for (auto* buf : { &a, &b, &c }) checkAudio (*buf, "OTT extremes");
+            CHECK (std::abs (p.ottViews[0].count.load() - 2.0f) < 0.01f, "OTT count follows the knob");
+            // моно
+            ChromaProcessor m;
+            juce::AudioProcessor::BusesLayout mono;
+            mono.inputBuses.add (juce::AudioChannelSet::mono());
+            mono.outputBuses.add (juce::AudioChannelSet::mono());
+            m.setBusesLayout (mono);
+            ottProc (m);
+            juce::AudioBuffer<float> one (1, (int) sr);
+            auto src = testSignal (sr, 1.0);
+            one.copyFrom (0, 0, src, 0, 0, (int) sr);
+            const auto ms = stats (run (m, one));
+            CHECK (! ms.nan && ms.peak <= 1.0f && ms.rms > 0.003f, "OTT mono");
+        }
+    }
+
     // ---------------------------------------------------------------- порядок, копия, состояние
     std::cout << "rack and state\n";
     {
@@ -358,6 +483,13 @@ int main (int argc, char** argv)
         std::cout << "  4 x Ophan, 10 s stereo in " << juce::String (ms, 0) << " ms (" << juce::String (10000.0 / ms, 1) << "x realtime)\n";
         CHECK (ms < 2000.0, "too slow");
         checkAudio (out, "speed");
+        for (int s = 0; s < kSlots; ++s) { p.setSlotType (s, EffectType::OttStack); setParam (p, slotParam (s, ParamId::count), 40.0f); }
+        const auto t1 = juce::Time::getMillisecondCounterHiRes();
+        auto out2 = run (p, in);
+        const double ms2 = juce::Time::getMillisecondCounterHiRes() - t1;
+        std::cout << "  4 x OTT Stack x40, 10 s stereo in " << juce::String (ms2, 0) << " ms (" << juce::String (10000.0 / ms2, 1) << "x realtime)\n";
+        CHECK (ms2 < 8000.0, "OTT stack too slow");
+        checkAudio (out2, "speed OTT");
     }
 
     // ---------------------------------------------------------------- демо WAV
@@ -369,14 +501,14 @@ int main (int argc, char** argv)
         ChromaProcessor p;
         p.prepareToPlay (sr, kBlock);
         int k = 1;
-        for (auto* nm : { "Biblically Accurate", "Gentle Halo", "Wheels Within Wheels", "Glossolalia" })
+        for (auto* nm : { "Biblically Accurate", "Gentle Halo", "Wheels Within Wheels", "Glossolalia", "Double OTT", "Tower of Babel", "Squash Choir" })
             for (int i = 0; i < p.presets.getNumFactory(); ++i)
                 if (juce::String (factoryPresets()[(size_t) i].name) == nm)
                 {
                     p.presets.loadFactory (i);
                     p.prepareToPlay (sr, kBlock);
                     auto out = run (p, in);
-                    writeWav (outDir.getChildFile ("demo_0" + juce::String (k++) + "_" + juce::String (nm).replace (" ", "_").toLowerCase() + ".wav"), out, sr);
+                    writeWav (outDir.getChildFile ("demo_" + juce::String (k++).paddedLeft ('0', 2) + "_" + juce::String (nm).replace (" ", "_").toLowerCase() + ".wav"), out, sr);
                 }
     }
 
@@ -427,6 +559,17 @@ int main (int argc, char** argv)
             ed->selectSlotForTest (2);
             run (p, demoSignal (48000.0, 0.4), ed);
             shoot ("ui_" + tn + "_empty");
+            ed->selectSlotForTest (0);
+
+            for (int i = 0; i < p.presets.getNumFactory(); ++i)
+                if (juce::String (factoryPresets()[(size_t) i].name) == "Squash Choir") p.presets.loadFactory (i);
+            ed->selectSlotForTest (1);
+            run (p, music, ed);
+            shoot ("ui_" + tn + "_ott");
+            ed->setViewForTest (1);
+            run (p, music, ed);
+            shoot ("ui_" + tn + "_ott_scope");
+            ed->setViewForTest (0);
             ed->selectSlotForTest (0);
 
             ed->showAboutForTest (true, false);

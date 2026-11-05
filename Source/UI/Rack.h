@@ -16,7 +16,7 @@ public:
     void setSelected (int slot);
     int getSelected() const { return selected; }
     std::function<void (int)> onSelect;
-    void update (const std::array<OphanSnapshot, kSlots>& snaps, double sampleRate);
+    void update (const std::array<OphanSnapshot, kSlots>& snaps, const std::array<OttSnapshot, kSlots>& ottSnaps, double sampleRate);
 
     void paint (juce::Graphics& g) override;
     void resized() override {}
@@ -47,6 +47,7 @@ private:
     int dragFrom = -1, dropPos = -1;
     bool dragging = false;
     std::array<OphanSnapshot, kSlots> snaps;
+    std::array<OttSnapshot, kSlots> ottSnaps;
     double sampleRate = 48000.0;
 };
 } // namespace chroma

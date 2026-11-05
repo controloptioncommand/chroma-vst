@@ -2,13 +2,14 @@
 
 namespace chroma
 {
-juce::StringArray effectNames() { return { "Empty", "Ophan" }; }
+juce::StringArray effectNames() { return { "Empty", "Ophan", "OTT Stack" }; }
 
 juce::String effectTagline (EffectType t)
 {
     switch (t)
     {
         case EffectType::Ophan: return "Biblically accurate EQ";
+        case EffectType::OttStack: return "OTT in series";
         case EffectType::Empty: break;
     }
     return "Empty slot";
@@ -83,6 +84,21 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         group->addChild (hz (slotParam (s, ParamId::lowCut), pre + "Low cut", 10.0f, 2000.0f, 225.0f, 200.0f));
         group->addChild (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { slotParam (s, ParamId::shape), 1 }, pre + "Shape",
                                                                        juce::StringArray { "Sine", "Stray" }, 1));
+        // OTT Stack
+        group->addChild (std::make_unique<juce::AudioParameterInt> (juce::ParameterID { slotParam (s, ParamId::count), 1 }, pre + "OTT count", 2, 40, 8,
+            juce::AudioParameterIntAttributes().withStringFromValueFunction ([] (int v, int) { return juce::String::fromUTF8 ("\xc3\x97") + juce::String (v); })));
+        group->addChild (pct (slotParam (s, ParamId::ottDepth), pre + "OTT depth", 0.0f, 100.0f, 100.0f));
+        {
+            juce::NormalisableRange<float> r (10.0f, 1000.0f, 1.0f);
+            r.setSkewForCentre (100.0f);
+            group->addChild (std::make_unique<Float> (juce::ParameterID { slotParam (s, ParamId::time), 1 }, pre + "OTT time", r, 100.0f,
+                Attr().withLabel ("%").withStringFromValueFunction ([] (float v, int) { return juce::String (juce::roundToInt (v)) + "%"; })));
+        }
+        group->addChild (pct (slotParam (s, ParamId::upward), pre + "OTT upward", 0.0f, 100.0f, 100.0f));
+        group->addChild (pct (slotParam (s, ParamId::downward), pre + "OTT downward", 0.0f, 100.0f, 100.0f));
+        group->addChild (std::make_unique<Float> (juce::ParameterID { slotParam (s, ParamId::trim), 1 }, pre + "OTT output",
+            juce::NormalisableRange<float> (-48.0f, 12.0f, 0.1f), -3.0f,
+            Attr().withLabel ("dB").withStringFromValueFunction ([] (float v, int) { return signedText (v, " dB", 1); })));
         l.add (std::move (group));
     }
     return l;

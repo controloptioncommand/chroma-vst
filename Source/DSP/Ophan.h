@@ -1,5 +1,6 @@
 #pragma once
 #include "Lfo.h"
+#include "Svf.h"
 #include <array>
 #include <atomic>
 
@@ -62,30 +63,6 @@ struct OphanView
     std::atomic<float> lfo[4] {};   // текущие значения LFO 0…1: Gain L, Gain R, Freq L, Freq R
     std::atomic<float> drift { 0.0f };
     std::atomic<bool> live { false };
-};
-
-// Фильтр-переменная состояния (Simper / Cytomic SVF): устойчив при быстрой модуляции
-struct Svf
-{
-    float a1 = 1, a2 = 0, a3 = 0, m0 = 1, m1 = 0, m2 = 0;   // коэффициенты
-    float ic1 = 0, ic2 = 0;                                // состояние
-    inline float tick (float v0)
-    {
-        const float v3 = v0 - ic2;
-        const float v1 = a1 * ic1 + a2 * v3;
-        const float v2 = ic2 + a2 * ic1 + a3 * v3;
-        ic1 = 2.0f * v1 - ic1;
-        ic2 = 2.0f * v2 - ic2;
-        return m0 * v0 + m1 * v1 + m2 * v2;
-    }
-    void clear() { ic1 = ic2 = 0; }
-};
-
-struct SvfCoefs
-{
-    float a1 = 1, a2 = 0, a3 = 0, m0 = 1, m1 = 0, m2 = 0;
-    static SvfCoefs bell (double f, double q, double db, double sr);
-    static SvfCoefs highpass (double f, double q, double sr);
 };
 
 class Ophan

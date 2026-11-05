@@ -59,6 +59,7 @@ private:
     MainView mainView;
     SlotPanel panel;
     std::array<OphanSnapshot, kSlots> snaps;
+    std::array<OttSnapshot, kSlots> ottSnaps;
     std::array<int, kSlots> shownTypes {};
     std::array<int, kSlots> shownOrder {};
     int frame = 0;

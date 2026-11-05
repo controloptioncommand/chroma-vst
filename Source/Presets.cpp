@@ -25,6 +25,14 @@ const std::vector<FactoryPreset>& factoryPresets()
         { "Six Wings", { { P (0, type), 1 }, { P (0, rate), 0.6f }, { P (0, q), 50 }, { P (0, depth), 120 },
                          { P (1, type), 1 }, { P (1, rate), 0.21f }, { P (1, spread), 40 }, { P (1, q), 250 }, { P (1, depth), 160 }, { P (1, mix), 50 } } },
         { "Be Not Afraid", { { P (0, type), 1 }, { P (0, rate), 9.0f }, { P (0, drift), 80 }, { P (0, depth), 200 }, { P (0, q), 300 }, { P (0, lowCut), 120 } } },
+        // OTT Stack (новые пресеты — только в конец)
+        { "Double OTT", { { P (0, type), 2 }, { P (0, count), 2 } } },
+        { "Tower of Babel", { { P (0, type), 2 }, { P (0, count), 40 } } },
+        { "Gentle Glue", { { P (0, type), 2 }, { P (0, count), 4 }, { P (0, ottDepth), 40 }, { P (0, time), 160 }, { P (0, mix), 70 }, { P (0, trim), 0 } } },
+        { "Squash Choir", { { P (0, type), 1 }, { P (0, rate), 0.6f }, { P (0, depth), 140 },
+                            { P (1, type), 2 }, { P (1, count), 12 } } },
+        { "Angel Crush", { { P (0, type), 1 }, { P (0, rate), 1.4f }, { P (0, q), 160 },
+                           { P (1, type), 2 }, { P (1, count), 24 }, { P (1, time), 40 }, { P (1, trim), -6 } }, "1023" },
     };
     return list;
 }

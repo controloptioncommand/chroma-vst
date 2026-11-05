@@ -1,6 +1,7 @@
 #pragma once
 #include "Widgets.h"
 #include "../DSP/Ophan.h"
+#include "../DSP/OttStack.h"
 #include <juce_dsp/juce_dsp.h>
 #include <complex>
 #include <deque>
@@ -39,6 +40,15 @@ struct OphanSnapshot
     std::complex<double> response (int side, double f, double sr) const;
 };
 
+// Снимок OTT Stack: работа каждой ступени по полосам
+struct OttSnapshot
+{
+    bool live = false;
+    float count = 0.0f;
+    float gain[OttRecipe::kMaxStages][OttRecipe::kBands] {};
+    void read (const OttView& v);
+};
+
 // Главный вид: кривые EQ левого и правого канала поверх спектра выхода (Curves) или осциллограмма (Scope)
 class MainView : public juce::Component
 {
@@ -52,6 +62,8 @@ public:
     void setSampleRate (double r) { sampleRate = r > 0 ? r : 48000.0; }
     // что показывать: заголовок слота и снимок Ophan (если слот пустой или выключен — только спектр)
     void setSlot (const juce::String& caption, const OphanSnapshot* snap);
+    // слот OTT Stack: вместо кривых — карта ступеней (вкладка Stack)
+    void setOttSlot (const juce::String& caption, const OttSnapshot* snap);
 
     void paint (juce::Graphics& g) override;
     void resized() override;
@@ -64,6 +76,9 @@ public:
 
 private:
     void paintCurves (juce::Graphics& g, juce::Rectangle<float> area);
+    void paintGrid (juce::Graphics& g, juce::Rectangle<float> area, bool dbLines);
+    void paintSpectrum (juce::Graphics& g, juce::Rectangle<float> area);
+    void paintStack (juce::Graphics& g, juce::Rectangle<float> area);
     void paintScope (juce::Graphics& g, juce::Rectangle<float> area);
     void paintOverlay (juce::Graphics& g);
     juce::Colour background() const;
@@ -73,6 +88,8 @@ private:
     double sampleRate = 48000.0;
     juce::String caption;
     OphanSnapshot snap;
+    OttSnapshot ottSnap;
+    bool ottMode = false;
     juce::Rectangle<float> tabsArea, legendArea;
 
     // кольцо выхода

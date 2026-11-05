@@ -46,37 +46,6 @@ void OphanAdvanced::resetToRecipe()
 }
 
 // ---------------------------------------------------------------------------
-SvfCoefs SvfCoefs::bell (double f, double q, double db, double sr)
-{
-    SvfCoefs c;
-    const double A = std::pow (10.0, db / 40.0);
-    const double g = std::tan (kPi * f / sr);
-    const double k = 1.0 / (q * A);
-    const double a1 = 1.0 / (1.0 + g * (g + k));
-    c.a1 = (float) a1;
-    c.a2 = (float) (g * a1);
-    c.a3 = (float) (g * g * a1);
-    c.m0 = 1.0f;
-    c.m1 = (float) (k * (A * A - 1.0));
-    c.m2 = 0.0f;
-    return c;
-}
-
-SvfCoefs SvfCoefs::highpass (double f, double q, double sr)
-{
-    SvfCoefs c;
-    const double g = std::tan (kPi * f / sr);
-    const double k = 1.0 / q;
-    const double a1 = 1.0 / (1.0 + g * (g + k));
-    c.a1 = (float) a1;
-    c.a2 = (float) (g * a1);
-    c.a3 = (float) (g * g * a1);
-    c.m0 = 1.0f;
-    c.m1 = (float) -k;
-    c.m2 = -1.0f;
-    return c;
-}
-
 // ---------------------------------------------------------------------------
 void Ophan::prepare (double sampleRate, uint32_t seed)
 {

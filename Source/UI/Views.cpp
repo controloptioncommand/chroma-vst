@@ -7,6 +7,7 @@ using LnF = ChromaLookAndFeel;
 namespace
 {
 const char* kTabNames[2] = { "Curves", "Scope" };
+const char* kOttTabNames[2] = { "Stack", "Scope" };
 constexpr double kPi = 3.141592653589793;
 constexpr float kFMin = 20.0f, kFMax = 20000.0f;
 }
@@ -140,8 +141,26 @@ void MainView::setMode (Mode m)
 void MainView::setSlot (const juce::String& c, const OphanSnapshot* s)
 {
     caption = c;
+    ottMode = false;
     snap = s != nullptr ? *s : OphanSnapshot {};
     if (s == nullptr) snap.live = false;
+}
+
+void MainView::setOttSlot (const juce::String& c, const OttSnapshot* s)
+{
+    caption = c;
+    ottMode = true;
+    ottSnap = s != nullptr ? *s : OttSnapshot {};
+    if (s == nullptr) ottSnap.live = false;
+}
+
+void OttSnapshot::read (const OttView& v)
+{
+    live = v.live.load (std::memory_order_relaxed);
+    count = v.count.load (std::memory_order_relaxed);
+    for (int st = 0; st < OttRecipe::kMaxStages; ++st)
+        for (int b = 0; b < OttRecipe::kBands; ++b)
+            gain[st][b] = v.gain[(size_t) st][(size_t) b].load (std::memory_order_relaxed);
 }
 
 void MainView::push (const float* x, int n)
@@ -212,12 +231,9 @@ float MainView::xForFreq (float f, juce::Rectangle<float> a) const
     return a.getX() + t * a.getWidth();
 }
 
-void MainView::paintCurves (juce::Graphics& g, juce::Rectangle<float> a)
+void MainView::paintGrid (juce::Graphics& g, juce::Rectangle<float> a, bool dbLines)
 {
     const float dashes[] = { 3.0f, 4.0f };
-    auto yForDb = [&] (float db) { return a.getCentreY() - juce::jlimit (-kDbRange, kDbRange, db) / kDbRange * a.getHeight() * 0.5f; };
-
-    // сетка: частоты и уровни
     g.setFont (LnF::mono (LnF::Type::footnote));
     for (float f : { 100.0f, 1000.0f, 10000.0f })
     {
@@ -228,6 +244,8 @@ void MainView::paintCurves (juce::Graphics& g, juce::Rectangle<float> a)
         g.drawText (f >= 1000.0f ? juce::String ((int) (f / 1000.0f)) + "k" : juce::String ((int) f),
                     juce::Rectangle<float> (x + 4.0f, a.getBottom() + 2.0f, 40.0f, 14.0f), juce::Justification::centredLeft);
     }
+    if (! dbLines) return;
+    auto yForDb = [&] (float db) { return a.getCentreY() - juce::jlimit (-kDbRange, kDbRange, db) / kDbRange * a.getHeight() * 0.5f; };
     for (float db : { 24.0f, 12.0f, 0.0f, -12.0f, -24.0f })
     {
         const float y = yForDb (db);
@@ -237,28 +255,77 @@ void MainView::paintCurves (juce::Graphics& g, juce::Rectangle<float> a)
         const auto txt = db > 0 ? "+" + juce::String ((int) db) : db < 0 ? minus() + juce::String ((int) -db) : juce::String ("0");
         g.drawText (txt, juce::Rectangle<float> (a.getRight() + 4.0f, y - 7.0f, 30.0f, 14.0f), juce::Justification::centredLeft);
     }
+}
 
+void MainView::paintSpectrum (juce::Graphics& g, juce::Rectangle<float> a)
+{
     // спектр выхода: тихая заливка снизу (−90…−6 дБ на всю высоту)
+    juce::Path p;
+    bool started = false;
+    const int nb = kFftSize / 2;
+    for (int px = 0; px <= (int) a.getWidth(); px += 2)
     {
-        juce::Path p;
-        bool started = false;
-        const int nb = kFftSize / 2;
-        for (int px = 0; px <= (int) a.getWidth(); px += 2)
-        {
-            const float f = kFMin * std::pow (kFMax / kFMin, (float) px / a.getWidth());
-            const float bin = f / (float) sampleRate * (float) kFftSize;
-            const int b0 = juce::jlimit (1, nb - 1, (int) bin);
-            const float db = spectrum[(size_t) b0] + 3.0f * std::log2 (juce::jmax (1.0f, f / 1000.0f));   // наклон +3 дБ/окт
-            const float t = juce::jlimit (0.0f, 1.0f, (db + 90.0f) / 84.0f);
-            const float y = a.getBottom() - t * a.getHeight();
-            if (! started) { p.startNewSubPath (a.getX() + (float) px, a.getBottom()); started = true; }
-            p.lineTo (a.getX() + (float) px, y);
-        }
-        p.lineTo (a.getRight(), a.getBottom());
-        p.closeSubPath();
-        g.setColour (Colours::ink.withAlpha (0.07f));
-        g.fillPath (p);
+        const float f = kFMin * std::pow (kFMax / kFMin, (float) px / a.getWidth());
+        const float bin = f / (float) sampleRate * (float) kFftSize;
+        const int b0 = juce::jlimit (1, nb - 1, (int) bin);
+        const float db = spectrum[(size_t) b0] + 3.0f * std::log2 (juce::jmax (1.0f, f / 1000.0f));   // наклон +3 дБ/окт
+        const float t = juce::jlimit (0.0f, 1.0f, (db + 90.0f) / 84.0f);
+        const float y = a.getBottom() - t * a.getHeight();
+        if (! started) { p.startNewSubPath (a.getX() + (float) px, a.getBottom()); started = true; }
+        p.lineTo (a.getX() + (float) px, y);
     }
+    p.lineTo (a.getRight(), a.getBottom());
+    p.closeSubPath();
+    g.setColour (Colours::ink.withAlpha (0.07f));
+    g.fillPath (p);
+}
+
+void MainView::paintStack (juce::Graphics& g, juce::Rectangle<float> a)
+{
+    paintGrid (g, a, false);
+    paintSpectrum (g, a);
+    const float dashes[] = { 3.0f, 4.0f };
+    const float xs[4] = { a.getX(), xForFreq ((float) OttRecipe::kLowX, a), xForFreq ((float) OttRecipe::kHighX, a), a.getRight() };
+    // кроссоверы
+    g.setFont (LnF::mono (LnF::Type::footnote));
+    for (int i = 1; i <= 2; ++i)
+    {
+        g.setColour (Colours::ink2.withAlpha (0.55f));
+        g.drawDashedLine ({ xs[i], a.getY(), xs[i], a.getBottom() }, dashes, 2, 1.0f);
+        g.setColour (Colours::ink2);
+        g.drawText (i == 1 ? juce::String ("88 Hz") : juce::String ("2.5 kHz"), juce::Rectangle<float> (xs[i] + 4.0f, a.getY() - 16.0f, 60.0f, 14.0f),
+                    juce::Justification::centredLeft);
+    }
+    if (! ottSnap.live) return;
+
+    // карта ступеней: строка — ступень (1 сверху), три клетки — полосы. Подъём снизу — carrier, сжатие сверху — modulator.
+    const int n = juce::jlimit (1, OttRecipe::kMaxStages, (int) std::ceil (ottSnap.count - 1e-3f));
+    const float rowH = a.getHeight() / (float) n;
+    const float gap = rowH >= 6.0f ? 2.0f : 1.0f;
+    for (int st = 0; st < n; ++st)
+    {
+        const float fade = juce::jlimit (0.0f, 1.0f, ottSnap.count - (float) st);   // ступень, которая въезжает
+        for (int b = 0; b < OttRecipe::kBands; ++b)
+        {
+            const float gdb = ottSnap.gain[st][b];
+            const float t = juce::jlimit (0.0f, 1.0f, std::abs (gdb) / 24.0f);
+            auto cell = juce::Rectangle<float> (xs[b] + 6.0f, a.getY() + rowH * (float) st, xs[b + 1] - xs[b] - 12.0f, rowH - gap);
+            const auto col = gdb >= 0.0f ? Colours::carrier : Colours::modulator;
+            g.setColour (Colours::well.interpolatedWith (col, (0.12f + 0.88f * t) * fade));
+            g.fillRoundedRectangle (cell, juce::jmin (3.0f, cell.getHeight() * 0.3f));
+        }
+    }
+    g.setColour (Colours::ink2);
+    g.drawText ("1", juce::Rectangle<float> (a.getRight() + 4.0f, a.getY(), 30.0f, juce::jmin (14.0f, rowH)), juce::Justification::centredLeft);
+    g.drawText (juce::String (n), juce::Rectangle<float> (a.getRight() + 4.0f, a.getBottom() - juce::jmin (14.0f, rowH), 30.0f, juce::jmin (14.0f, rowH)),
+                juce::Justification::centredLeft);
+}
+
+void MainView::paintCurves (juce::Graphics& g, juce::Rectangle<float> a)
+{
+    auto yForDb = [&] (float db) { return a.getCentreY() - juce::jlimit (-kDbRange, kDbRange, db) / kDbRange * a.getHeight() * 0.5f; };
+    paintGrid (g, a, true);
+    paintSpectrum (g, a);
 
     if (! snap.live) return;
 
@@ -352,9 +419,9 @@ void MainView::paintOverlay (juce::Graphics& g)
         {
             auto cell = juce::Rectangle<float> (r.getX() + half * (float) side, r.getY(), half, r.getHeight());
             g.setColour (side == 0 ? Colours::carrier : Colours::modulator);
-            g.fillRoundedRectangle (cell.removeFromLeft (22.0f).withSizeKeepingCentre (18.0f, 3.0f), 1.5f);
+            g.fillRoundedRectangle (cell.removeFromLeft (22.0f).withSizeKeepingCentre (18.0f, ottMode ? 8.0f : 3.0f), ottMode ? 2.0f : 1.5f);
             g.setColour (Colours::ink);
-            g.drawText (side == 0 ? "Left" : "Right", cell.withTrimmedLeft (6.0f), juce::Justification::centredLeft);
+            g.drawText (ottMode ? (side == 0 ? "Up" : "Down") : (side == 0 ? "Left" : "Right"), cell.withTrimmedLeft (6.0f), juce::Justification::centredLeft);
         }
     }
     else
@@ -386,7 +453,7 @@ void MainView::paintOverlay (juce::Graphics& g)
         }
         g.setColour (sel ? Colours::ink : Colours::ink2);
         g.setFont (LnF::font (LnF::Type::subheadline, sel));
-        g.drawText (kTabNames[i], cell, juce::Justification::centred);
+        g.drawText (ottMode ? kOttTabNames[i] : kTabNames[i], cell, juce::Justification::centred);
     }
     if (hasKeyboardFocus (false))
         LnF::drawFocusRing (g, tabsArea.expanded (2.0f), tabsArea.getHeight() * 0.5f + 2.0f);
@@ -403,7 +470,8 @@ void MainView::paint (juce::Graphics& g)
         juce::Path clip;
         clip.addRoundedRectangle (r.reduced (1.0f), radius - 1.0f);
         g.reduceClipRegion (clip);
-        if (mode == Curves) paintCurves (g, r.withTrimmedLeft (16.0f).withTrimmedRight (44.0f).withTrimmedTop (52.0f).withTrimmedBottom (60.0f));
+        if (mode == Curves && ottMode) paintStack (g, r.withTrimmedLeft (16.0f).withTrimmedRight (44.0f).withTrimmedTop (52.0f).withTrimmedBottom (60.0f));
+        else if (mode == Curves) paintCurves (g, r.withTrimmedLeft (16.0f).withTrimmedRight (44.0f).withTrimmedTop (52.0f).withTrimmedBottom (60.0f));
         else paintScope (g, r.reduced (1.0f, 46.0f));
         paintOverlay (g);
     }

@@ -3,6 +3,7 @@
 #include "Params.h"
 #include "Presets.h"
 #include "DSP/Ophan.h"
+#include "DSP/OttStack.h"
 
 namespace chroma
 {
@@ -55,6 +56,7 @@ public:
 
     // ---- для интерфейса
     std::array<OphanView, kSlots> views;
+    std::array<OttView, kSlots> ottViews;
     static constexpr int kScopeSize = 1 << 15;
     juce::AbstractFifo scopeFifo { kScopeSize };
     std::vector<float> scopeBuf = std::vector<float> (kScopeSize, 0.0f);   // моно-сумма выхода
@@ -67,12 +69,14 @@ private:
 
     std::array<OphanAdvanced, kSlots> adv;
     std::array<Ophan, kSlots> ophan;
+    std::array<OttStack, kSlots> ott;
     std::atomic<int> orderPacked { 0x3210 };   // по 4 бита на место
 
     struct SlotParams
     {
         std::atomic<float>* type = nullptr, * on = nullptr, * mix = nullptr, * rate = nullptr, * drift = nullptr, * depth = nullptr,
-                          * q = nullptr, * spread = nullptr, * lowCut = nullptr, * shape = nullptr;
+                          * q = nullptr, * spread = nullptr, * lowCut = nullptr, * shape = nullptr,
+                          * count = nullptr, * ottDepth = nullptr, * time = nullptr, * upward = nullptr, * downward = nullptr, * trim = nullptr;
     };
     std::array<SlotParams, kSlots> sp;
     std::atomic<float>* outParam = nullptr;

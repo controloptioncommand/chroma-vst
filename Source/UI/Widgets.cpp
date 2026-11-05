@@ -201,12 +201,21 @@ void ParamKnob::attach (APVTS& state, const juce::String& id)
     updateValue();
 }
 
+void ParamKnob::setBig (bool b)
+{
+    big = b;
+    slider.getProperties().set ("big", b);
+    label.setFont (b ? LnF::font (LnF::Type::headline, true) : LnF::font (LnF::Type::subheadline, true));
+    value.setFont (b ? LnF::mono (LnF::Type::body) : LnF::mono (LnF::Type::footnote));
+    resized();
+}
+
 void ParamKnob::resized()
 {
     // [круг] [имя] [значение] — по центру ячейки
     auto r = getLocalBounds();
-    const int nameH = 15, valH = 13;
-    const int knob = juce::jlimit (20, 54, juce::jmin (r.getWidth() - 6, r.getHeight() - nameH - valH - 4));
+    const int nameH = big ? 18 : 15, valH = big ? 16 : 13;
+    const int knob = juce::jlimit (20, big ? 116 : 54, juce::jmin (r.getWidth() - 6, r.getHeight() - nameH - valH - 4));
     auto area = r.withSizeKeepingCentre (r.getWidth(), knob + 4 + nameH + valH);
     slider.setBounds (area.removeFromTop (knob).withSizeKeepingCentre (knob, knob));
     area.removeFromTop (4);

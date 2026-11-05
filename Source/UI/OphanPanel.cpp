@@ -142,22 +142,20 @@ SlotPanel::SlotPanel (ChromaProcessor& p) : proc (p)
     shapeSwitch.setTitle ("LFO shape");
     shapeSwitch.setItems ({ { "Sine", 0 }, { "Stray", 1 } });
     for (juce::Component* c : std::initializer_list<juce::Component*> { &modeSwitch, &shapeSwitch, &rate, &drift, &depth, &q, &spread, &lowCut, &mix,
-                                                                        &onToggle, &status, &driftRate, &resetButton, &addButton })
+                                                                        &onToggle, &status, &driftRate, &resetButton, &addOphan, &addOtt,
+                                                                        &count, &ottDepth, &time, &upward, &downward, &trim })
         addAndMakeVisible (c);
+    count.setBig (true);
     status.setFont (LnF::mono (LnF::Type::footnote));
     status.getProperties().set ("dim", true);
     status.setJustificationType (juce::Justification::centredRight);
 
     resetButton.setTitle ("Reset advanced settings to the recipe");
     resetButton.onClick = [this] { proc.resetAdvanced (slot); repaint(); };
-    addButton.setButtonText (juce::String ("Add Ophan") + midDot() + effectTagline (EffectType::Ophan));
-    addButton.onClick = [this]
-    {
-        proc.clearSlot (slot);
-        proc.setSlotType (slot, EffectType::Ophan);
-        refresh();
-        if (onSlotChanged) onSlotChanged();
-    };
+    addOphan.setButtonText (juce::String ("Ophan") + midDot() + effectTagline (EffectType::Ophan));
+    addOphan.onClick = [this] { addEffect (EffectType::Ophan); };
+    addOtt.setButtonText (juce::String ("OTT Stack") + midDot() + effectTagline (EffectType::OttStack));
+    addOtt.onClick = [this] { addEffect (EffectType::OttStack); };
 
     driftRate.get = [this] { return adv().driftRate.load(); };
     driftRate.set = [this] (float v) { adv().driftRate.store (v); };
@@ -168,6 +166,14 @@ SlotPanel::SlotPanel (ChromaProcessor& p) : proc (p)
 }
 
 OphanAdvanced& SlotPanel::adv() { return proc.advanced (slot); }
+
+void SlotPanel::addEffect (EffectType t)
+{
+    proc.clearSlot (slot);
+    proc.setSlotType (slot, t);
+    refresh();
+    if (onSlotChanged) onSlotChanged();
+}
 
 void SlotPanel::buildGrid()
 {
@@ -203,6 +209,12 @@ void SlotPanel::attachSlot()
     lowCut.attach (proc.apvts, slotParam (slot, ParamId::lowCut));
     mix.attach (proc.apvts, slotParam (slot, ParamId::mix));
     onToggle.attach (proc.apvts, slotParam (slot, ParamId::on));
+    count.attach (proc.apvts, slotParam (slot, ParamId::count));
+    ottDepth.attach (proc.apvts, slotParam (slot, ParamId::ottDepth));
+    time.attach (proc.apvts, slotParam (slot, ParamId::time));
+    upward.attach (proc.apvts, slotParam (slot, ParamId::upward));
+    downward.attach (proc.apvts, slotParam (slot, ParamId::downward));
+    trim.attach (proc.apvts, slotParam (slot, ParamId::trim));
     shapeAtt = std::make_unique<juce::ParameterAttachment> (*proc.apvts.getParameter (slotParam (slot, ParamId::shape)),
         [this] (float v) { shapeSwitch.setSelectedValue (juce::roundToInt (v)); }, nullptr);
     shapeSwitch.onChange = [this] (int v) { shapeAtt->setValueAsCompleteGesture ((float) v); };
@@ -220,15 +232,21 @@ void SlotPanel::refresh()
 void SlotPanel::updateVisibility()
 {
     advancedMode = modeSwitch.getSelectedValue() == 1;
-    const bool ophan = shownType == EffectType::Ophan;
+    const bool ophan = shownType == EffectType::Ophan, ottType = shownType == EffectType::OttStack;
+    const bool empty = ! ophan && ! ottType;
     modeSwitch.setVisible (ophan);
-    for (juce::Component* c : std::initializer_list<juce::Component*> { &shapeSwitch, &rate, &drift, &depth, &q, &spread, &lowCut, &mix })
+    for (juce::Component* c : std::initializer_list<juce::Component*> { &shapeSwitch, &rate, &drift, &depth, &q, &spread, &lowCut })
         c->setVisible (ophan && ! advancedMode);
+    for (juce::Component* c : std::initializer_list<juce::Component*> { &count, &ottDepth, &time, &upward, &downward, &trim })
+        c->setVisible (ottType);
+    mix.setVisible ((ophan && ! advancedMode) || ottType);
     for (auto& c : cells) c->setVisible (ophan && advancedMode);
     driftRate.setVisible (ophan && advancedMode);
     resetButton.setVisible (ophan && advancedMode);
-    onToggle.setVisible (ophan);
-    addButton.setVisible (! ophan);
+    onToggle.setVisible (! empty);
+    addOphan.setVisible (empty);
+    addOtt.setVisible (empty);
+    layoutBody();
     repaint();
 }
 
@@ -242,14 +260,7 @@ void SlotPanel::resized()
     bodyArea = inner;
     modeSwitch.setBounds (headArea.withTrimmedLeft (headArea.getWidth() - 220).withHeight (30));
 
-    // Macro: форма LFO слева, ручки
-    {
-        auto row = bodyArea.withSizeKeepingCentre (bodyArea.getWidth(), juce::jmin (bodyArea.getHeight(), 100));
-        shapeArea = row.removeFromLeft (180);
-        shapeSwitch.setBounds (shapeArea.withSizeKeepingCentre (164, 30).translated (0, 8));
-        row.removeFromLeft (20);
-        layoutRow (row, { &rate, &drift, &depth, &q, &spread, &lowCut, &mix }, 10);
-    }
+    layoutBody();
 
     // Advanced: сетка
     {
@@ -279,7 +290,31 @@ void SlotPanel::resized()
     status.setBounds (f.removeFromRight (300));
 
     addArea = bodyArea;
-    addButton.setBounds (bodyArea.withSizeKeepingCentre (320, 36));
+    auto adds = bodyArea.withSizeKeepingCentre (320, 36 * 2 + 10);
+    addOphan.setBounds (adds.removeFromTop (36));
+    adds.removeFromTop (10);
+    addOtt.setBounds (adds.removeFromTop (36));
+}
+
+void SlotPanel::layoutBody()
+{
+    if (bodyArea.isEmpty()) return;
+    if (shownType == EffectType::OttStack)
+    {
+        // главная ручка Count слева, второстепенные — рядом, за линией
+        auto row = bodyArea;
+        count.setBounds (row.removeFromLeft (220).withSizeKeepingCentre (200, juce::jmin (row.getHeight(), 170)));
+        ottDividerX = row.getX() + 18;
+        row.removeFromLeft (36);
+        layoutRow (row.withSizeKeepingCentre (row.getWidth(), juce::jmin (row.getHeight(), 100)), { &ottDepth, &time, &upward, &downward, &trim, &mix }, 10);
+        return;
+    }
+    // Ophan, Macro: форма LFO слева, ручки
+    auto row = bodyArea.withSizeKeepingCentre (bodyArea.getWidth(), juce::jmin (bodyArea.getHeight(), 100));
+    shapeArea = row.removeFromLeft (180);
+    shapeSwitch.setBounds (shapeArea.withSizeKeepingCentre (164, 30).translated (0, 8));
+    row.removeFromLeft (20);
+    layoutRow (row, { &rate, &drift, &depth, &q, &spread, &lowCut, &mix }, 10);
 }
 
 void SlotPanel::paint (juce::Graphics& g)
@@ -295,6 +330,17 @@ void SlotPanel::paint (juce::Graphics& g)
     auto ta = headArea.withTrimmedRight (240);
     g.setColour (Colours::ink);
     g.setFont (LnF::font (LnF::Type::title3, true));
+    if (shownType == EffectType::OttStack)
+    {
+        g.drawText (juce::String ("OTT Stack") + midDot() + effectTagline (EffectType::OttStack), ta.removeFromTop (20), juce::Justification::centredLeft);
+        g.setColour (Colours::ink2);
+        g.setFont (LnF::font (LnF::Type::callout));
+        g.drawFittedText ("OTT from Ableton (three bands, upward and downward compression) chained up to 40 times. "
+                          "Count sets how many; Output sets the level after the whole stack.", ta.withTrimmedTop (4), juce::Justification::topLeft, 2, 1.0f);
+        g.setColour (Colours::outline);
+        g.drawVerticalLine (ottDividerX, (float) bodyArea.getY() + 10.0f, (float) bodyArea.getBottom() - 10.0f);
+        return;
+    }
     if (shownType == EffectType::Ophan)
     {
         g.drawText (juce::String ("Ophan") + midDot() + effectTagline (EffectType::Ophan), ta.removeFromTop (20), juce::Justification::centredLeft);

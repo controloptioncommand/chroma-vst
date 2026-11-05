@@ -38,7 +38,7 @@ private:
     float startValue = 0;
 };
 
-// Панель выбранного слота: Ophan (вкладки Macro / Advanced) или пустой слот (выбор эффекта)
+// Панель выбранного слота: Ophan (вкладки Macro / Advanced), OTT Stack (главная ручка Count) или пустой слот (выбор эффекта)
 class SlotPanel : public juce::Component
 {
 public:
@@ -56,6 +56,8 @@ public:
 private:
     void attachSlot();
     void updateVisibility();
+    void layoutBody();
+    void addEffect (EffectType t);
     void buildGrid();
     OphanAdvanced& adv();
 
@@ -67,6 +69,8 @@ private:
     Segmented modeSwitch, shapeSwitch;
     std::unique_ptr<juce::ParameterAttachment> shapeAtt;
     ParamKnob rate { "Rate" }, drift { "Drift" }, depth { "Depth" }, q { "Q" }, spread { "Spread" }, lowCut { "Low cut" }, mix { "Mix" };
+    // OTT Stack
+    ParamKnob count { "Count" }, ottDepth { "Depth" }, time { "Time" }, upward { "Upward" }, downward { "Downward" }, trim { "Output" };
     ParamToggle onToggle { "On" };
     juce::Label status;
 
@@ -74,9 +78,10 @@ private:
     std::vector<std::unique_ptr<DragValue>> cells;
     DragValue driftRate { DragValue::Rate, "Drift rate" };
     juce::TextButton resetButton { "Reset to recipe" };
-    juce::TextButton addButton;
+    juce::TextButton addOphan, addOtt;
 
     juce::Rectangle<int> headArea, bodyArea, footArea, gridArea, shapeArea, addArea;
+    int ottDividerX = 0;
     int gridCol0 = 0, gridCellW = 0, gridGroupGap = 0, gridRowH = 0, gridTop = 0;
 };
 } // namespace chroma

@@ -256,7 +256,10 @@ void ChromaEditor::timerCallback()
 
     const double sr = proc.getSampleRate() > 0 ? proc.getSampleRate() : 48000.0;
     for (int s = 0; s < kSlots; ++s)
+    {
         snaps[(size_t) s].read (proc.views[(size_t) s], proc.apvts.getRawParameterValue (slotParam (s, ParamId::mix))->load() / 100.0f);
+        ottSnaps[(size_t) s].read (proc.ottViews[(size_t) s]);
+    }
 
     // тип слота или порядок сменились (меню, пресет, автоматизация) — обновить панель
     bool changed = false;
@@ -282,13 +285,19 @@ void ChromaEditor::timerCallback()
         caption << "Ophan" << midDot() << (snaps[(size_t) sel].live ? "LFO " + juce::String (now, 2) + " Hz" : juce::String ("off"));
         mainView.setSlot (caption, &snaps[(size_t) sel]);
     }
+    else if (type == EffectType::OttStack)
+    {
+        const auto& os = ottSnaps[(size_t) sel];
+        caption << "OTT Stack" << midDot() << (os.live ? juce::String::fromUTF8 ("\xc3\x97") + juce::String (juce::roundToInt (os.count)) : juce::String ("off"));
+        mainView.setOttSlot (caption, &os);
+    }
     else mainView.setSlot (caption + "Empty", nullptr);
 
     mainView.setSampleRate (sr);
     mainView.tick();
     mini.setSampleRate (sr);
     mini.tick();
-    rack.update (snaps, sr);
+    rack.update (snaps, ottSnaps, sr);
     if (++frame % 15 == 0) panel.repaint();   // значения Advanced после пресета / копии
 
     inMeter.setLevel (proc.inPeak.load());

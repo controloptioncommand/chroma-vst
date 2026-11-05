@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1-FF6B2C?style=flat-square&labelColor=18191C" alt="version 1">
+  <img src="https://img.shields.io/badge/version-1.01-FF6B2C?style=flat-square&labelColor=18191C" alt="version 1.01">
   <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-EDEDE9?style=flat-square&labelColor=18191C" alt="macOS, Apple Silicon">
   <img src="https://img.shields.io/badge/formats-VST3%20%C2%B7%20AU-8EA0FF?style=flat-square&labelColor=18191C" alt="VST3 and AU">
   <img src="https://img.shields.io/badge/vibe-coded-FF7AA2?style=flat-square&labelColor=18191C" alt="vibe-coded">
@@ -53,15 +53,33 @@
 
 Честно о сходстве. Сетка и диапазоны взяты из видео, где рецепт показывают: частоты левого канала, Q, маппинги усиления и частоты, Scale 200%, скорость и глубина пятого LFO. Чего в видео не видно, подобрано на слух: «нечётные» частоты правого канала сдвинуты на полшага шкалы, часть Q правого канала, форма волны Stray (у Ableton свой генератор, здесь — свой) и степень Adaptive Q.
 
+## OTT Stack — OTT подряд, от 2 до 40
+
+Второй эффект. Тот самый приём «поставить OTT на OTT» — только без десятка одинаковых устройств на дорожке.
+
+Один OTT здесь — как пресет OTT устройства Multiband Dynamics в Ableton: три полосы (кроссоверы 88.3 Гц и 2.5 кГц), в каждой сжатие вниз выше порога (1:66.7) и вверх ниже порога (1:4.17), затем подъём полосы.
+
+- **Count** — главная ручка: сколько OTT стоит подряд, от 2 до 40. Меняется плавно — новые OTT въезжают по одному, без щелчков.
+- **Output** — громкость после всей стопки (−48…+12 dB).
+- Второстепенные: **Depth** (параллельная смесь каждого OTT, как у Xfer OTT), **Time** (атака и восстановление, 10–1000%), **Upward**, **Downward**, **Mix**.
+
+Каналы сжимаются вместе — стереокартина не плывёт. Вкладка **Stack** показывает работу каждого OTT по трём полосам: синее — подъём тихого, розовое — сжатие громкого.
+
+<p align="center">
+  <img src="docs/assets/ui_oxygen_ott.png" alt="chrōma в светлой теме Oxygen: Ophan и OTT Stack ×12 в rack, карта ступеней по трём полосам, панель с большой ручкой Count и ручками Depth, Time, Upward, Downward, Output, Mix." width="100%">
+</p>
+
+Честно о сходстве. Пороги, ratio, подъёмы полос, атаки и восстановления — по пресету OTT в Ableton. Две вещи добавлены, чтобы 40 OTT подряд оставались музыкой: у каждого OTT есть мягкий потолок +6 dBFS (ниже 0 dBFS звук не трогается), иначе атаки копят по +10 дБ на каждой ступени. А ниже −84 dBFS стопка ничего не поднимает — иначе шум и хвосты вырастают до громкости музыки. 40 OTT — это около 12% одного ядра.
+
 ## Окно
 
-- **Curves** — живые кривые левого (синий) и правого (розовый) канала выбранного слота с номерами полос поверх спектра выхода. **Scope** — волна на выходе.
-- На карточках слотов — миниатюры кривых, Mix и скорость LFO.
+- **Curves** (у Ophan) — живые кривые левого (синий) и правого (розовый) канала выбранного слота с номерами полос поверх спектра выхода. **Stack** (у OTT Stack) — карта ступеней. **Scope** — волна на выходе.
+- На карточках слотов — миниатюры кривых или карты ступеней, Mix и скорость LFO или число OTT.
 - В тулбаре уровни **In** и **Out** (громкость — перетаскиванием по шкале), мини-спектрограмма — просто для красоты.
 
 ## Пресеты
 
-10 фабричных: Biblically Accurate (рецепт один в один), Twerking, Gentle Halo, Sine Choir, Mono Prayer, Glossolalia, Thin Air, Wheels Within Wheels, Six Wings, Be Not Afraid. Пресет хранит весь rack: слоты, порядок и Advanced. Свои — меню пресета → Save preset, лежат в `~/Music/chroma/Presets/*.chroma`.
+15 фабричных. Ophan: Biblically Accurate (рецепт один в один), Twerking, Gentle Halo, Sine Choir, Mono Prayer, Glossolalia, Thin Air, Wheels Within Wheels, Six Wings, Be Not Afraid. OTT Stack: Double OTT, Tower of Babel (×40), Gentle Glue, Squash Choir (Ophan → OTT ×12), Angel Crush (OTT ×24 → Ophan). Пресет хранит весь rack: слоты, порядок и Advanced. Свои — меню пресета → Save preset, лежат в `~/Music/chroma/Presets/*.chroma`.
 
 ## Две темы
 
@@ -96,13 +114,15 @@ JUCE 8 скачивается автоматически.
 bash docs/manual/build.sh
 ```
 
-Тест проверяет фильтры и LFO, рендерит Ophan на разных частотах дискретизации (не тишина, не NaN, не выше 0 dBFS, каналы различаются), обход пустых и выключенных слотов бит-в-бит, крайние значения, порядок цепочки и сохранение состояния, все пресеты, скорость, пишет демо-WAV и снимает скриншоты интерфейса.
+Тест проверяет фильтры и LFO, ровность кроссоверов OTT Stack, сжатие и тишину на 40 ступенях, рендерит Ophan на разных частотах дискретизации (не тишина, не NaN, не выше 0 dBFS, каналы различаются), обход пустых и выключенных слотов бит-в-бит, крайние значения, порядок цепочки и сохранение состояния, все пресеты, скорость, пишет демо-WAV и снимает скриншоты интерфейса.
 
 ## Устройство
 
 | Где | Что |
 |---|---|
 | `Source/DSP/Ophan.*` | Ophan: SVF-фильтры, рецепт, пять LFO |
+| `Source/DSP/OttStack.*` | OTT Stack: кроссоверы Linkwitz–Riley, сжатие вверх и вниз, до 40 ступеней |
+| `Source/DSP/Svf.h` | SVF-фильтры (Simper): колокол, срезы, фазовращатель |
 | `Source/DSP/Lfo.h` | LFO: Sine и Stray |
 | `Source/PluginProcessor.*` | Rack: слоты, порядок, состояние, метры |
 | `Source/Params.*`, `Source/Presets.*` | Параметры слотов и пресеты |

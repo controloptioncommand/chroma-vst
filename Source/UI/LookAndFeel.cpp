@@ -259,7 +259,7 @@ void ChromaLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w
     const auto bounds = juce::Rectangle<int> (x, y, w, h).toFloat().reduced (3.0f);
     const float r = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
     const auto c = bounds.getCentre();
-    const float lineW = 3.0f;   // подложка и дуга значения — 3 px
+    const float lineW = s.getProperties()["big"] ? 4.0f : 3.0f;   // подложка и дуга значения — 3 px (главная ручка — 4 px)
     const float arcR = r - lineW * 0.5f;
     const float angle = startAngle + pos * (endAngle - startAngle);
 

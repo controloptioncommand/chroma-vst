@@ -7,7 +7,7 @@ namespace chroma
 // Параметры привязаны к слоту, а не к месту в цепочке: при перестановке автоматизация едет вместе с эффектом.
 inline constexpr int kSlots = 4;
 
-enum class EffectType { Empty = 0, Ophan = 1 };
+enum class EffectType { Empty = 0, Ophan = 1, OttStack = 2 };   // новые — только в конец
 juce::StringArray effectNames();          // для параметра типа слота
 juce::String effectTagline (EffectType);  // подзаголовок эффекта
 
@@ -26,6 +26,13 @@ namespace ParamId
     inline constexpr const char* spread = "spread";
     inline constexpr const char* lowCut = "lowcut";
     inline constexpr const char* shape = "shape";
+    // OTT Stack
+    inline constexpr const char* count = "count";
+    inline constexpr const char* ottDepth = "odepth";
+    inline constexpr const char* time = "time";
+    inline constexpr const char* upward = "upward";
+    inline constexpr const char* downward = "downward";
+    inline constexpr const char* trim = "trim";
 }
 
 // «s2_rate»
