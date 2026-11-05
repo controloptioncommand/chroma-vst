@@ -84,7 +84,7 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
 <div class="cover">
   <div class="grid"></div>
   <div class="logo">chrōma</div>
-  <div class="sub">Руководство пользователя · <b>v2</b></div>
+  <div class="sub">Руководство пользователя · <b>v2.01</b></div>
   <div class="shot"><img src="img/main.jpg"></div>
   <div class="foot"><span>effect rack · VST3 · AU · macOS</span><span>made by nnn</span></div>
 </div>
@@ -96,7 +96,7 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <li><span class="mono">02</span>Установка</li>
     <li><span class="mono">03</span>Первый звук за минуту</li>
     <li><span class="mono">04</span>Окно плагина</li>
-    <li><span class="mono">05</span>Rack: слоты и порядок</li>
+    <li><span class="mono">05</span>Rack: слоты, порядок и режимы</li>
     <li><span class="mono">06</span>Главный вид: Curves, Stack и Scope</li>
     <li><span class="mono">07</span>Ophan: как устроен</li>
     <li><span class="mono">08</span>Ophan: Macro</li>
@@ -110,12 +110,13 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <h2 style="margin-top: 10mm"><span class="n">01</span>Что такое chrōma</h2>
   <p class="lead">chrōma — rack с экспериментальными эффектами обработки. Приёмы, которые в DAW собирают из нескольких устройств и десятка маппингов, здесь собраны в один эффект.</p>
   <ul>
-    <li>Цепочка из <b>четырёх слотов</b>: сигнал идёт слева направо, порядок меняется перетаскиванием.</li>
+    <li>Цепочка из <b>четырёх слотов</b>: сигнал идёт слева направо, порядок меняется перетаскиванием. Или <b>Parallel</b>: каждый слот обрабатывает сухой вход, выходы смешиваются.</li>
     <li>У каждого слота — переключатель <b>On</b>, <b>Mix</b> и ручки эффекта. Автоматизация привязана к слоту и едет вместе с ним.</li>
     <li><b>Ophan</b>, «Biblically accurate EQ»: EQ Eight в режиме L/R, семь узких колоколов на канал и пять LFO, которые гоняют их по спектру и по стереобазе.</li>
     <li><b>OTT Stack</b>: от 2 до 40 OTT подряд одной ручкой, громкость после стопки — отдельной.</li>
     <li>Живые кривые Ophan и карта ступеней OTT поверх спектра выхода.</li>
-    <li>15 фабричных пресетов. Весь rack сохраняется в проекте Ableton.</li>
+    <li><b>Кубик</b>: случайные настройки эффектов, которые стоят в rack, в безопасных пределах.</li>
+    <li>16 фабричных пресетов. Весь rack сохраняется в проекте Ableton.</li>
   </ul>
   <div class="note"><b>Как читать.</b> Названия ручек и кнопок даны так, как они подписаны в плагине (по-английски). Диапазоны — моноширинным шрифтом.</div>
 </section>
@@ -151,7 +152,7 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <figure style="margin-top:0"><img src="img/main.jpg" style="max-width: 100mm"><figcaption>Главное окно в тёмной теме Rubber.</figcaption></figure>
   <table>
     <tr><th style="width:34mm">Зона</th><th>Что там</th></tr>
-    <tr><td>Тулбар</td><td>Логотип (клик — страница About), пресет <span class="mono">‹ имя ›</span>, мини-спектрограмма, уровни In и Out, настройки.</td></tr>
+    <tr><td>Тулбар</td><td>Логотип (клик — страница About), пресет <span class="mono">‹ имя ›</span>, кубик, режим Serial / Parallel, мини-спектрограмма, уровни In и Out, настройки.</td></tr>
     <tr><td>Rack</td><td>Четыре слота цепочки. Выбранный слот обведён.</td></tr>
     <tr><td>Главный вид</td><td>Curves (Ophan) или Stack (OTT Stack) — что делает выбранный слот, поверх спектра; Scope — волна на выходе.</td></tr>
     <tr><td>Панель</td><td>Ручки выбранного слота (у Ophan — вкладки Macro и Advanced). Внизу — On и CPU.</td></tr>
@@ -160,16 +161,18 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <figure><img src="img/toolbar.jpg"></figure>
   <ul>
     <li><b>‹ ›</b> — предыдущий и следующий пресет. Клик по имени — список: фабричные, ваши, Save preset…, Show presets folder.</li>
+    <li><b>Кубик</b> — случайные настройки эффектов в rack, см. раздел 11.</li>
+    <li><b>Serial / Parallel</b> — режим обработки, см. раздел 05.</li>
     <li><b>Мини-спектрограмма</b> — просто украшение: спектр выхода пиксельной лентой.</li>
     <li><b>In</b> — уровень на входе плагина.</li>
     <li><b>Out</b> — громкость выхода <span class="mono">−36…+12 dB</span> (по умолчанию <span class="mono">0</span>): тяните по шкале, двойной клик — <span class="mono">0</span>. Цветная полоса — уровень сигнала, выше −1 dB она оранжевая. Выход защищён мягким лимитером: ниже −1 dBFS он ничего не трогает, выше 0 dBFS не бывает.</li>
-    <li><b>Настройки</b> — тема, размер окна, сохранение пресета, About.</li>
+    <li><b>Настройки</b> — тема, размер окна, что меняет кубик (Randomizer), сохранение пресета, Credits, About.</li>
   </ul>
   <div class="note"><b>Масштаб.</b> Окно тянется за правый нижний угол от 50 до 200%, пропорции сохраняются. Быстрые размеры: настройки → Size (75, 100, 125, 150%).</div>
 </section>
 
 <section>
-  <h2><span class="n">05</span>Rack: слоты и порядок</h2>
+  <h2><span class="n">05</span>Rack: слоты, порядок и режимы</h2>
   <figure style="margin-top:0"><img src="img/rack.jpg"><figcaption>Два Ophan подряд и два пустых слота. Шевроны между карточками — направление сигнала.</figcaption></figure>
   <p>Сигнал проходит слоты слева направо. На карточке: номер места в цепочке, имя эффекта, переключатель <b>On</b>, меню <b>⋯</b>, миниатюра кривых, Mix и скорость LFO.</p>
   <table>
@@ -181,13 +184,25 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <tr><td>Дублировать</td><td>Меню ⋯ → Duplicate: копия со всеми ручками (у Ophan — и с Advanced) встаёт сразу за оригиналом (нужен свободный слот).</td></tr>
     <tr><td>Очистить</td><td>Меню ⋯ → Clear slot.</td></tr>
   </table>
+  <h3>Serial и Parallel</h3>
+  <p>Переключатель в тулбаре. <b>Serial</b> (по умолчанию) — слоты обрабатывают звук по очереди, слева направо: каждый следующий получает выход предыдущего, порядок слышен. <b>Parallel</b> — каждый включённый слот получает один и тот же сухой вход, а выходы слотов усредняются. Между карточками вместо шевронов «›» стоят «+».</p>
+  <figure><img src="img/rack_parallel.jpg"><figcaption>Parallel: два Ophan на одном сухом входе (пресет Ophanim).</figcaption></figure>
+  <ul>
+    <li>Усреднение держит громкость: один включённый слот звучит в Parallel так же, как в Serial; два — каждый вносит половину.</li>
+    <li>Mix слота в Parallel смешивает сухой сигнал внутри своей ветки.</li>
+    <li>Выключенные и пустые слоты в среднем не участвуют. Включение и выключение слота — плавное, без щелчков.</li>
+    <li>Порядок в Parallel не слышен; перестановка ничего не меняет.</li>
+    <li>Смена режима на ходу — короткий провал громкости (около 15 мс) вместо щелчка.</li>
+    <li>Режим хранится в проекте и в пресете. Старые проекты открываются в Serial.</li>
+  </ul>
+  <div class="note"><b>OTT Stack в Parallel.</b> Кроссоверы OTT сдвигают фазу. Сложенный с другой веткой, OTT даёт лёгкие провалы около <span class="mono">88 Hz</span> и <span class="mono">2.5 kHz</span> — как и его собственный Mix. Это часть звука, не ошибка.</div>
   <h3>С клавиатуры</h3>
   <p>Tab до полосы слотов, затем <span class="mono">← →</span> — выбор, <span class="mono">⌥← ⌥→</span> — переставить, пробел — On, Return — меню.</p>
   <div class="note"><b>Автоматизация едет за слотом.</b> Параметры принадлежат слоту, а не месту в цепочке (<span class="mono">Slot 1 Rate</span>, <span class="mono">Slot 2 Rate</span>…). Переставили слот — его дорожки автоматизации продолжают управлять им же.</div>
 </section>
 
-<section>
-  <h2><span class="n">06</span>Главный вид: Curves, Stack и Scope</h2>
+<section style="break-before: auto">
+  <h2 style="margin-top: 10mm"><span class="n">06</span>Главный вид: Curves, Stack и Scope</h2>
   <figure style="margin-top:0"><img src="img/view_curves.jpg"><figcaption>Curves: синяя кривая — левый канал, розовая — правый; кружки — полосы 2–8, как в EQ Eight.</figcaption></figure>
   <ul>
     <li><b>Curves</b> — суммарная АЧХ выбранного слота для левого и правого канала, с учётом Low cut и Mix. Шкала <span class="mono">±30 dB</span>, пунктир через 12 dB. Серая заливка — спектр выхода.</li>
@@ -293,8 +308,21 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <tr><td>Gentle Glue</td><td>OTT ×4, Depth 40%, Mix 70% — мягко склеивает.</td></tr>
     <tr><td>Squash Choir</td><td>Ophan → OTT ×12: стопка вытягивает колокола.</td></tr>
     <tr><td>Angel Crush</td><td>OTT ×24 → Ophan.</td></tr>
+    <tr><td>Ophanim</td><td>Parallel: два Ophan на одном входе, Stray и Sine, — их колокола расходятся и сходятся.</td></tr>
   </table>
-  <p>Пресет хранит весь rack: типы и ручки слотов, порядок и Advanced. Громкость Out пресет не меняет. Свои пресеты — меню пресета → <b>Save preset…</b>, лежат в <code>~/Music/chroma/Presets/*.chroma</code>.</p>
+  <p>Пресет хранит весь rack: типы и ручки слотов, порядок, режим Serial / Parallel и Advanced. Громкость Out пресет не меняет. Свои пресеты — меню пресета → <b>Save preset…</b>, лежат в <code>~/Music/chroma/Presets/*.chroma</code>.</p>
+  <h3>Кубик</h3>
+  <p>Кнопка с кубиком в тулбаре случайно выставляет ручки эффектов, которые уже стоят в rack. Диапазоны «безопасные»: тишины и перегруза не будет.</p>
+  <ul>
+    <li><b>Ophan</b> — Rate <span class="mono">0.08–6 Hz</span>, Drift <span class="mono">0–70%</span>, Depth <span class="mono">60–200%</span>, Q <span class="mono">50–250%</span>, Spread, Low cut <span class="mono">40–600 Hz</span>, Shape.</li>
+    <li><b>OTT Stack</b> — Count (чаще мало OTT, изредка башня до <span class="mono">×40</span>), Depth, Time, Upward, Downward.</li>
+    <li><b>Slot order</b> — порядок слотов (только в Serial).</li>
+    <li><b>Slot mix</b> — Mix слотов, <span class="mono">50–100%</span>.</li>
+    <li><b>Ophan advanced</b> — рецепт полос: диапазоны частоты, усиление <span class="mono">±3…15 dB</span>, Q <span class="mono">4–18</span>, Drift rate. Вернуть рецепт — Advanced → Reset to recipe.</li>
+  </ul>
+  <p>Что кубику можно менять — настройки → <b>Randomizer</b>, галочки по пунктам выше. Выбор хранится в настройках плагина и действует во всех проектах. Кубик никогда не трогает тип эффекта, пустые слоты, On, режим Serial / Parallel, громкость Out и Output у OTT Stack. Автоматизация хоста видит изменения как обычные движения ручек.</p>
+  <h3>Credits</h3>
+  <p>Настройки → <b>Credits</b>: Ophan — по рецепту @rosco.moon, OTT — пресет Ableton.</p>
   <h3>Темы</h3>
   <p><b>Oxygen</b> — светлая, <b>Rubber</b> — тёмная или по системе: настройки → Appearance.</p>
   <figure class="small" style="margin-top:2mm"><img src="img/main_oxygen.jpg" style="max-width: 78mm"><figcaption>Светлая тема Oxygen.</figcaption></figure>
@@ -310,6 +338,8 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <p>Spread <span class="mono">0</span>: эффект двигается одинаково в обоих каналах и не пропадает при сведении в моно.</p>
   <h3>OTT до или после</h3>
   <p>OTT Stack после Ophan (пресет Squash Choir) вытягивает каждый колокол до громкости остального — эффект становится резче. До Ophan (Angel Crush) — Ophan режет уже сплющенный звук. Порядок — перетаскиванием карточек.</p>
+  <h3>Хор колёс</h3>
+  <p>Пресет Ophanim или два Ophan в Parallel с разными Rate (<span class="mono">0.4</span> и <span class="mono">0.55 Hz</span>) и разной Shape. Колокола двух веток то совпадают, то расходятся — получается медленное фазовое движение, которого нет в Serial.</p>
   <h3>Свой рецепт</h3>
   <p>Во вкладке Advanced сузьте все Freq from / to к одной октаве (например, <span class="mono">800 Hz – 1.6 kHz</span>) — колокола будут «роиться» в одной зоне, как формантный фильтр.</p>
 </section>
@@ -326,6 +356,8 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <p>Нет: фильтры работают без задержки, хосту ничего компенсировать не нужно.</p>
   <h3>OTT Stack грузит процессор</h3>
   <p>40 OTT подряд — около 12% одного ядра (каждый OTT — 7 фильтров на канал). Нужна лёгкость — уменьшите Count.</p>
+  <h3>В Parallel эффект слабее</h3>
+  <p>Выходы слотов усредняются: при двух слотах каждый звучит наполовину. Нужен один эффект сильнее — выключите остальные или верните Serial.</p>
   <h3>Где другие эффекты</h3>
   <p>chrōma задумана как rack, эффекты будут добавляться в следующих версиях. Слоты и пресеты из v1 останутся рабочими.</p>
 </section>

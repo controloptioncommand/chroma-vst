@@ -1,9 +1,10 @@
 // Офлайн-тест chrōma: фильтры и LFO, Ophan (не тишина, не NaN, ≤ 0 dBFS, L ≠ R, Spread 0 → моно), обход пустых и выключенных
-// слотов, Mix 0, порядок цепочки, состояние, пресеты, крайние значения, частоты дискретизации, скорость, демо-WAV,
+// слотов, Mix 0, порядок цепочки, режим Parallel, кубик, состояние, пресеты, крайние значения, частоты дискретизации, скорость, демо-WAV,
 // скриншоты интерфейса в обеих темах, About.
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "Randomizer.h"
 
 using namespace chroma;
 
@@ -456,6 +457,192 @@ int main (int argc, char** argv)
         checkAudio (run (q, testSignal (48000.0, 1.0)), "after state round trip");
     }
 
+    // ---------------------------------------------------------------- параллельный режим
+    std::cout << "parallel\n";
+    {
+        const double sr = 48000.0;
+        const auto in = testSignal (sr, 1.0, 0.25f, false);
+        auto fresh = [&] (ChromaProcessor& p, ChainMode m)
+        {
+            p.presets.loadFactory (0);   // один Ophan
+            p.setChainMode (m);
+            p.prepareToPlay (sr, kBlock);
+        };
+        // одна ветка звучит так же, как в Serial, бит-в-бит
+        {
+            ChromaProcessor a, b;
+            fresh (a, ChainMode::Serial);
+            fresh (b, ChainMode::Parallel);
+            CHECK (maxDiff (run (a, in), run (b, in)) == 0.0f, "parallel with one slot differs from serial");
+        }
+        // всё выключено — сухой бит-в-бит; два слота с Mix 0 — тоже
+        {
+            ChromaProcessor p;
+            fresh (p, ChainMode::Parallel);
+            setParam (p, slotParam (0, ParamId::on), 0.0f);
+            p.prepareToPlay (sr, kBlock);
+            CHECK (maxDiff (run (p, in), in) == 0.0f, "parallel, all off: not bit-exact");
+            setParam (p, slotParam (0, ParamId::on), 1.0f);
+            p.copySlot (0, 1);
+            setParam (p, slotParam (0, ParamId::mix), 0.0f);
+            setParam (p, slotParam (1, ParamId::mix), 0.0f);
+            p.prepareToPlay (sr, kBlock);
+            CHECK (maxDiff (run (p, in), in) == 0.0f, "parallel, two slots at Mix 0: not bit-exact");
+        }
+        // выключили слот на ходу: веса докатываются, дальше — сухой бит-в-бит
+        {
+            ChromaProcessor p;
+            fresh (p, ChainMode::Parallel);
+            run (p, in);
+            setParam (p, slotParam (0, ParamId::on), 0.0f);
+            auto fade = run (p, testSignal (sr, 0.3, 0.25f, false));
+            checkAudio (fade, "parallel fade-out");
+            CHECK (maxDiff (run (p, in), in) == 0.0f, "parallel: slot switched off does not settle to dry");
+        }
+        // два Ophan: в Parallel иначе, чем в Serial; громкость в пределах
+        {
+            ChromaProcessor a, b;
+            for (auto* p : { &a, &b })
+            {
+                p->presets.loadFactory (7);   // Wheels Within Wheels: два Ophan
+                p->setChainMode (p == &a ? ChainMode::Serial : ChainMode::Parallel);
+                p->prepareToPlay (sr, kBlock);
+            }
+            const auto sa = run (a, in), sb = run (b, in);
+            checkAudio (sb, "parallel, two Ophan");
+            CHECK (maxDiff (sa, sb) > 0.01f, "parallel sounds the same as serial");
+        }
+        // смена режима на ходу: короткий провал, без NaN и перегруза; большой блок тоже
+        {
+            ChromaProcessor p;
+            p.presets.loadFactory (13);   // Squash Choir: Ophan → OTT
+            p.prepareToPlay (sr, 4096);
+            juce::AudioBuffer<float> out (in);
+            juce::MidiBuffer midi;
+            for (int pos = 0, k = 0; pos < out.getNumSamples(); pos += kBlock, ++k)
+            {
+                if (k % 20 == 10) p.setChainMode (p.getChainMode() == ChainMode::Serial ? ChainMode::Parallel : ChainMode::Serial);
+                juce::AudioBuffer<float> view (out.getArrayOfWritePointers(), 2, pos, juce::jmin (kBlock, out.getNumSamples() - pos));
+                p.processBlock (view, midi);
+            }
+            checkAudio (out, "mode switching");
+            juce::AudioBuffer<float> big (testSignal (sr, 0.5, 0.25f, false));
+            p.setChainMode (ChainMode::Parallel);
+            p.processBlock (big, midi);   // блок больше, чем объявлен в prepareToPlay
+            checkAudio (big, "parallel, oversized block");
+        }
+        // состояние: режим сохраняется, старый проект без режима — Serial, фабричный пресет ставит свой
+        {
+            ChromaProcessor p;
+            p.setChainMode (ChainMode::Parallel);
+            juce::MemoryBlock mb;
+            p.getStateInformation (mb);
+            ChromaProcessor q;
+            q.setStateInformation (mb.getData(), (int) mb.getSize());
+            CHECK (q.getChainMode() == ChainMode::Parallel, "mode not restored");
+            auto xml = juce::AudioProcessor::getXmlFromBinary (mb.getData(), (int) mb.getSize());
+            xml->removeAttribute ("mode");
+            juce::MemoryBlock old;
+            juce::AudioProcessor::copyXmlToBinary (*xml, old);
+            q.setStateInformation (old.getData(), (int) old.getSize());
+            CHECK (q.getChainMode() == ChainMode::Serial, "old project without mode is not serial");
+            q.setChainMode (ChainMode::Parallel);
+            q.presets.loadFactory (0);
+            CHECK (q.getChainMode() == ChainMode::Serial, "factory preset does not reset mode");
+            for (int i = 0; i < q.presets.getNumFactory(); ++i)
+                if (juce::String (factoryPresets()[(size_t) i].name) == "Ophanim") q.presets.loadFactory (i);
+            CHECK (q.getChainMode() == ChainMode::Parallel, "Ophanim is not parallel");
+        }
+    }
+
+    // ---------------------------------------------------------------- кубик
+    std::cout << "dice\n";
+    {
+        const double sr = 48000.0;
+        auto setup = [&] (ChromaProcessor& p)
+        {
+            p.presets.loadFactory (0);
+            p.setSlotType (1, EffectType::OttStack);
+            p.setSlotType (2, EffectType::Ophan);
+            setParam (p, slotParam (2, ParamId::on), 0.0f);
+            setParam (p, ParamId::output, -2.0f);
+            p.prepareToPlay (sr, kBlock);
+        };
+        auto value = [] (ChromaProcessor& p, const juce::String& id) { return p.apvts.getRawParameterValue (id)->load(); };
+
+        ChromaProcessor p;
+        setup (p);
+        juce::Random rng (5);
+        int worstSilent = 0;
+        float worstPeak = 0;
+        bool rateChanged = false, countChanged = false, mixChanged = false, advChanged = false, orderChanged = false;
+        for (int k = 0; k < 40; ++k)
+        {
+            const float rate0 = value (p, slotParam (0, ParamId::rate)), count0 = value (p, slotParam (1, ParamId::count));
+            const float mix0 = value (p, slotParam (0, ParamId::mix)), q0 = p.advanced (0).band[0][2].q.load();
+            const auto o0 = p.getOrder();
+            randomizeRack (p, rng);
+            rateChanged |= value (p, slotParam (0, ParamId::rate)) != rate0;
+            countChanged |= value (p, slotParam (1, ParamId::count)) != count0;
+            mixChanged |= value (p, slotParam (0, ParamId::mix)) != mix0;
+            advChanged |= p.advanced (0).band[0][2].q.load() != q0;
+            orderChanged |= p.getOrder() != o0;
+            const auto st = stats (run (p, testSignal (sr, 0.5, 0.5f, false)));
+            CHECK (! st.nan, "dice: NaN");
+            worstPeak = juce::jmax (worstPeak, st.peak);
+            if (st.rms < 0.003f) ++worstSilent;
+        }
+        std::cout << "  40 rolls: worst peak " << juce::String (worstPeak, 3) << ", silent " << worstSilent << "\n";
+        CHECK (worstSilent == 0, "dice produced silence");
+        CHECK (worstPeak <= 1.0f, "dice: peak above 0 dBFS");
+        CHECK (rateChanged && countChanged && mixChanged && advChanged && orderChanged, "dice did not change something it may change");
+        // никогда не трогает: тип, пустой слот, On, громкость, Output у OTT, режим
+        CHECK (p.getSlotType (0) == EffectType::Ophan && p.getSlotType (1) == EffectType::OttStack && p.getSlotType (2) == EffectType::Ophan
+               && p.getSlotType (3) == EffectType::Empty, "dice changed effect types");
+        CHECK (value (p, slotParam (2, ParamId::on)) < 0.5f && value (p, slotParam (0, ParamId::on)) > 0.5f, "dice changed On");
+        CHECK (std::abs (value (p, ParamId::output) + 2.0f) < 0.01f, "dice changed output volume");
+        CHECK (std::abs (value (p, slotParam (1, ParamId::trim)) + 3.0f) < 0.01f, "dice changed OTT output");
+        CHECK (std::abs (value (p, slotParam (3, ParamId::rate)) - 1.0f) < 0.01f, "dice changed an empty slot");
+        CHECK (p.getChainMode() == ChainMode::Serial, "dice changed the mode");
+
+        // запрещённые группы не меняются
+        {
+            ChromaProcessor q;
+            setup (q);
+            RandomizerOptions o;
+            o.enabled.fill (false);
+            o.enabled[RandomizerOptions::OttStack] = true;
+            juce::MemoryBlock before;
+            const float rate0 = value (q, slotParam (0, ParamId::rate)), mix0 = value (q, slotParam (1, ParamId::mix)), q0 = q.advanced (0).band[1][4].q.load();
+            const float count0 = value (q, slotParam (1, ParamId::count));
+            juce::Random r2 (9);
+            bool cnt = false;
+            for (int k = 0; k < 10; ++k) { randomizeRack (q, r2, o); cnt |= value (q, slotParam (1, ParamId::count)) != count0; }
+            CHECK (cnt, "dice: OTT allowed but count never changed");
+            CHECK (value (q, slotParam (0, ParamId::rate)) == rate0, "dice: Ophan disabled but changed");
+            CHECK (value (q, slotParam (1, ParamId::mix)) == mix0, "dice: Mix disabled but changed");
+            CHECK (q.advanced (0).band[1][4].q.load() == q0, "dice: advanced disabled but changed");
+            const auto o0 = q.getOrder();
+            CHECK (o0[0] == 0 && o0[1] == 1 && o0[2] == 2 && o0[3] == 3, "dice: order disabled but changed");
+            // в Parallel порядок не трогается даже при разрешении
+            o.enabled.fill (true);
+            q.setChainMode (ChainMode::Parallel);
+            for (int k = 0; k < 10; ++k) randomizeRack (q, r2, o);
+            CHECK (q.getOrder() == o0, "dice shuffled order in parallel mode");
+            // последовательность кубика не зависит от настроек
+            ChromaProcessor x, y;
+            setup (x);
+            setup (y);
+            juce::Random rx (3), ry (3);
+            RandomizerOptions onlyOphan;
+            onlyOphan.enabled.fill (false);
+            onlyOphan.enabled[RandomizerOptions::Ophan] = true;
+            randomizeRack (x, rx);
+            randomizeRack (y, ry, onlyOphan);
+            CHECK (value (x, slotParam (0, ParamId::rate)) == value (y, slotParam (0, ParamId::rate)), "dice sequence depends on options");
+        }
+    }
+
     // ---------------------------------------------------------------- пресеты
     std::cout << "presets\n";
     {
@@ -571,6 +758,16 @@ int main (int argc, char** argv)
             shoot ("ui_" + tn + "_ott_scope");
             ed->setViewForTest (0);
             ed->selectSlotForTest (0);
+
+            for (int i = 0; i < p.presets.getNumFactory(); ++i)
+                if (juce::String (factoryPresets()[(size_t) i].name) == "Ophanim") p.presets.loadFactory (i);
+            run (p, music, ed);
+            shoot ("ui_" + tn + "_parallel");
+            const float rate0 = p.apvts.getRawParameterValue (slotParam (0, ParamId::rate))->load();
+            ed->rollDiceForTest();
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (50);   // клик кнопки — асинхронный
+            CHECK (p.apvts.getRawParameterValue (slotParam (0, ParamId::rate))->load() != rate0, "dice button did nothing");
+            p.presets.loadFactory (0);
 
             ed->showAboutForTest (true, false);
             shoot ("about_" + tn);

@@ -45,6 +45,7 @@ set(CHROMA_SOURCES
     Source/PluginEditor.cpp
     Source/Params.cpp
     Source/Presets.cpp
+    Source/Randomizer.cpp
     Source/DSP/Ophan.cpp
     Source/DSP/OttStack.cpp
     Source/UI/LookAndFeel.cpp

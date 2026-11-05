@@ -33,6 +33,10 @@ const std::vector<FactoryPreset>& factoryPresets()
                             { P (1, type), 2 }, { P (1, count), 12 } } },
         { "Angel Crush", { { P (0, type), 1 }, { P (0, rate), 1.4f }, { P (0, q), 160 },
                            { P (1, type), 2 }, { P (1, count), 24 }, { P (1, time), 40 }, { P (1, trim), -6 } }, "1023" },
+        // параллельный режим: два Ophan на одном сухом входе — их резонансы интерферируют
+        { "Ophanim", { { P (0, type), 1 }, { P (0, rate), 0.4f }, { P (0, depth), 160 },
+                       { P (1, type), 1 }, { P (1, rate), 0.55f }, { P (1, shape), 0 }, { P (1, q), 150 }, { P (1, depth), 160 } },
+          "0123", ChainMode::Parallel },
     };
     return list;
 }

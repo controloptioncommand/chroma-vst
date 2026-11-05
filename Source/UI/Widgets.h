@@ -45,7 +45,7 @@ public:
 class IconButton : public juce::Button
 {
 public:
-    enum Kind { Settings, Pause, Play, Reset, Prev, Next };
+    enum Kind { Settings, Pause, Play, Reset, Prev, Next, Dice };
     IconButton (Kind k, const juce::String& title) : juce::Button (title), kind (k) { setTitle (title); }
     void setKind (Kind k) { kind = k; repaint(); }
     void paintButton (juce::Graphics& g, bool over, bool down) override;

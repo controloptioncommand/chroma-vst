@@ -47,6 +47,11 @@ public:
     void clearSlot (int slot);
     void copySlot (int from, int to);   // параметры и расширенные настройки
 
+    // режим обработки: Serial — слоты по очереди (порядок важен), Parallel — каждый слот получает
+    // сухой вход, выходы усредняются по включённым слотам. Не параметр хоста: хранится в состоянии, как порядок.
+    ChainMode getChainMode() const { return (ChainMode) chainMode.load(); }
+    void setChainMode (ChainMode m);
+
     // расширенные настройки Ophan
     OphanAdvanced& advanced (int slot) { return adv[(size_t) juce::jlimit (0, kSlots - 1, slot)]; }
     void resetAdvanced (int slot);
@@ -66,11 +71,24 @@ private:
     void pushRackState();   // атомики → дерево (перед сохранением)
     void pullRackState();   // дерево → атомики (после загрузки)
     void onPresetLoaded (const FactoryPreset* fp);
+    void ensureScratch (int samples);   // только вне аудиопотока
+    bool slotActive (int slot) const;   // не пустой и включён
+    void runSlot (int slot, float* L, float* R, int n);
+    void processParallel (float* L, float* R, int n);
 
     std::array<OphanAdvanced, kSlots> adv;
     std::array<Ophan, kSlots> ophan;
     std::array<OttStack, kSlots> ott;
     std::atomic<int> orderPacked { 0x3210 };   // по 4 бита на место
+    std::atomic<int> chainMode { (int) ChainMode::Serial };
+
+    // параллельный режим: сухая копия, рабочий буфер ветки, сумма и сумма весов (выделены заранее)
+    juce::AudioBuffer<float> dryBuf, workBuf, accBuf;
+    std::vector<float> normBuf;
+    std::array<float, kSlots> branchGain {};   // плавные веса веток (≈ 15 мс)
+    float dryGain = 1.0f;                       // вес сухого сигнала, когда ни одной ветки нет
+    int modeNow = (int) ChainMode::Serial;      // режим, который сейчас звучит
+    float modeFade = 1.0f;                      // смена режима: короткий провал громкости вместо щелчка
 
     struct SlotParams
     {

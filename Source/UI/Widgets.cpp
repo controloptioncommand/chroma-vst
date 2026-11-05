@@ -129,6 +129,16 @@ void IconButton::paintButton (juce::Graphics& g, bool over, bool down)
             g.fillPath (p);
             break;
         }
+        case Dice:
+        {
+            // игральный кубик (как в Mist): квадрат со скруглением и пять точек
+            auto d = juce::Rectangle<float> (16.0f, 16.0f).withCentre (c);
+            g.drawRoundedRectangle (d, 3.5f, 1.4f);
+            const float o = 4.3f, pr = 1.5f;
+            for (auto pt : { juce::Point<float> (-o, -o), { o, -o }, { 0, 0 }, { -o, o }, { o, o } })
+                g.fillEllipse (c.x + pt.x - pr, c.y + pt.y - pr, pr * 2, pr * 2);
+            break;
+        }
         case Prev:
         case Next:
         {

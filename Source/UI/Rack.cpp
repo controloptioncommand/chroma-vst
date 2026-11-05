@@ -30,7 +30,8 @@ void RackStrip::setSelected (int slot)
 void RackStrip::updateDescription()
 {
     const auto order = proc.getOrder();
-    juce::String d = "Effect chain, left to right:";
+    const bool parallel = proc.getChainMode() == ChainMode::Parallel;
+    juce::String d = parallel ? "Parallel effects, outputs averaged:" : "Effect chain, left to right:";
     for (int k = 0; k < kSlots; ++k)
     {
         const int s = order[(size_t) k];
@@ -322,15 +323,25 @@ void RackStrip::paint (juce::Graphics& g)
         if (dragging && k == dragFrom) g.setOpacity (0.55f);
         paintCard (g, k);
         g.setOpacity (1.0f);
-        // стрелка хода сигнала
+        // между слотами: «›» — ход сигнала (Serial), «+» — выходы складываются (Parallel)
         if (k < kSlots - 1)
         {
             auto c = cardRect (k);
             const float cx = c.getRight() + kGap * 0.5f, cy = c.getCentreY();
             juce::Path chev;
-            chev.startNewSubPath (cx - 2.5f, cy - 5.0f);
-            chev.lineTo (cx + 2.5f, cy);
-            chev.lineTo (cx - 2.5f, cy + 5.0f);
+            if (proc.getChainMode() == ChainMode::Parallel)
+            {
+                chev.startNewSubPath (cx - 4.5f, cy);
+                chev.lineTo (cx + 4.5f, cy);
+                chev.startNewSubPath (cx, cy - 4.5f);
+                chev.lineTo (cx, cy + 4.5f);
+            }
+            else
+            {
+                chev.startNewSubPath (cx - 2.5f, cy - 5.0f);
+                chev.lineTo (cx + 2.5f, cy);
+                chev.lineTo (cx - 2.5f, cy + 5.0f);
+            }
             g.setColour (Colours::ink2);
             g.strokePath (chev, juce::PathStrokeType (1.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         }

@@ -1,5 +1,6 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
+#include "Params.h"
 
 namespace chroma
 {
@@ -10,6 +11,7 @@ struct FactoryPreset
     const char* name;
     std::vector<std::pair<juce::String, float>> values;
     juce::String order = "0123";
+    ChainMode mode = ChainMode::Serial;
 };
 
 const std::vector<FactoryPreset>& factoryPresets();

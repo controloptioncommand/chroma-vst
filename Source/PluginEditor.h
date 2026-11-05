@@ -6,6 +6,7 @@
 #include "UI/Rack.h"
 #include "UI/OphanPanel.h"
 #include "UI/About.h"
+#include "Randomizer.h"
 
 namespace chroma
 {
@@ -27,6 +28,7 @@ public:
     void setViewForTest (int mode) { mainView.setMode ((MainView::Mode) mode); }
     void selectSlotForTest (int slot) { selectSlot (slot); }
     void setAdvancedForTest (bool adv) { panel.setAdvancedForTest (adv); }
+    void rollDiceForTest() { dice.triggerClick(); }
     void pumpForTest() { timerCallback(); }
 
 private:
@@ -39,6 +41,8 @@ private:
     void setThemeMode (ThemeMode m);
     void applyThemeMode();
     void selectSlot (int slot);
+    void loadRandomizerOptions();
+    void setRandomizerGroup (RandomizerOptions::Group g, bool allowed);
 
     ChromaProcessor& proc;
     ChromaLookAndFeel lnf;
@@ -48,7 +52,8 @@ private:
     // тулбар
     LogoButton logo;
     IconButton prevPreset { IconButton::Prev, "Previous preset" }, nextPreset { IconButton::Next, "Next preset" },
-               settingsButton { IconButton::Settings, "Settings" };
+               settingsButton { IconButton::Settings, "Settings" }, dice { IconButton::Dice, "Randomize" };
+    Segmented modeSwitch;   // Serial / Parallel
     TextLinkButton presetName;
     MiniSpectrogram mini;
     InMeter inMeter;
@@ -63,6 +68,9 @@ private:
     std::array<int, kSlots> shownTypes {};
     std::array<int, kSlots> shownOrder {};
     int frame = 0;
+
+    RandomizerOptions diceOptions;
+    juce::Random rng;
 
     AboutPage about;
     std::unique_ptr<juce::AlertWindow> saveWindow;

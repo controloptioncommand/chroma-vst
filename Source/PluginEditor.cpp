@@ -30,7 +30,7 @@ ChromaEditor::ChromaEditor (ChromaProcessor& p)
     addAndMakeVisible (content);
 
     // тулбар
-    for (juce::Component* c : std::initializer_list<juce::Component*> { &logo, &prevPreset, &presetName, &nextPreset, &mini, &inMeter, &outMeter, &settingsButton })
+    for (juce::Component* c : std::initializer_list<juce::Component*> { &logo, &prevPreset, &presetName, &nextPreset, &dice, &modeSwitch, &mini, &inMeter, &outMeter, &settingsButton })
         content.addAndMakeVisible (c);
     logo.onClick = [this] { showAbout (true); };
     presetName.setTitle ("Preset");
@@ -38,6 +38,17 @@ ChromaEditor::ChromaEditor (ChromaProcessor& p)
     prevPreset.onClick = [this] { proc.presets.step (-1); };
     nextPreset.onClick = [this] { proc.presets.step (1); };
     settingsButton.onClick = [this] { showSettingsMenu(); };
+
+    loadRandomizerOptions();
+    dice.setDescription ("Randomizes the knobs of the effects in the rack. Effect types, On switches and volume stay as they are. "
+                         "Choose what it may change in Settings, Randomizer.");
+    dice.onClick = [this] { randomizeRack (proc, rng, diceOptions); panel.refresh(); rack.repaint(); };
+
+    modeSwitch.setTitle ("Processing mode");
+    modeSwitch.setDescription ("Serial: slots process one after another, left to right. Parallel: every slot processes the dry input, the outputs are averaged.");
+    modeSwitch.setItems ({ { "Serial", (int) ChainMode::Serial }, { "Parallel", (int) ChainMode::Parallel } });
+    modeSwitch.setSelectedValue ((int) proc.getChainMode());
+    modeSwitch.onChange = [this] (int v) { proc.setChainMode ((ChainMode) v); rack.repaint(); };
 
     content.addAndMakeVisible (rack);
     content.addAndMakeVisible (mainView);
@@ -116,6 +127,22 @@ void ChromaEditor::selectSlot (int slot)
     proc.apvts.state.setProperty ("selectedSlot", slot, nullptr);
 }
 
+void ChromaEditor::loadRandomizerOptions()
+{
+    auto prefs = openPrefs();
+    for (int gi = 0; gi < RandomizerOptions::NumGroups; ++gi)
+    {
+        const auto grp = (RandomizerOptions::Group) gi;
+        diceOptions.enabled[(size_t) gi] = prefs->getBoolValue (RandomizerOptions::prefKey (grp), RandomizerOptions().allows (grp));
+    }
+}
+
+void ChromaEditor::setRandomizerGroup (RandomizerOptions::Group grp, bool allowed)
+{
+    diceOptions.enabled[(size_t) grp] = allowed;
+    if (auto prefs = openPrefs()) { prefs->setValue (RandomizerOptions::prefKey (grp), allowed); prefs->saveIfNeeded(); }
+}
+
 // ---------------------------------------------------------------------------
 void ChromaEditor::showPresetMenu()
 {
@@ -175,9 +202,23 @@ void ChromaEditor::showSettingsMenu()
     for (int pct : { 75, 100, 125, 150 })
         size.addItem (100 + pct, juce::String (pct) + "%", true, std::abs (getWidth() - kBaseW * pct / 100) < 4);
     m.addSubMenu ("Size", size);
+    juce::PopupMenu dicePrefs;
+    dicePrefs.addSectionHeader ("The dice may change");
+    for (int gi = 0; gi < RandomizerOptions::NumGroups; ++gi)
+    {
+        const auto grp = (RandomizerOptions::Group) gi;
+        if (grp == RandomizerOptions::Order) dicePrefs.addSeparator();
+        dicePrefs.addItem (300 + gi, RandomizerOptions::name (grp), true, diceOptions.allows (grp));
+    }
+    m.addSubMenu ("Randomizer", dicePrefs);
     m.addSeparator();
     m.addItem (2000, "Save preset...");
     m.addSeparator();
+    juce::PopupMenu credits;
+    const auto dash = juce::String::fromUTF8 (" \xe2\x80\x94 ");
+    credits.addItem (400, "Ophan" + dash + "@rosco.moon");
+    credits.addItem (401, "OTT" + dash + "Ableton");
+    m.addSubMenu ("Credits", credits);
     m.addItem (5, "About " + productName());
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (settingsButton), [this] (int r)
     {
@@ -186,6 +227,11 @@ void ChromaEditor::showSettingsMenu()
         else if (r == 201) setThemeMode (ThemeMode::System);
         else if (r == 202) setThemeMode (ThemeMode::Oxygen);
         else if (r == 203) setThemeMode (ThemeMode::Rubber);
+        else if (r >= 300 && r < 300 + RandomizerOptions::NumGroups)
+        {
+            const auto grp = (RandomizerOptions::Group) (r - 300);
+            setRandomizerGroup (grp, ! diceOptions.allows (grp));
+        }
         else if (r > 100 && r < 300)
         {
             const int pct = r - 100;
@@ -221,6 +267,10 @@ void ChromaEditor::resized()
         prevPreset.setBounds (h.removeFromLeft (32));
         presetName.setBounds (h.removeFromLeft (170));
         nextPreset.setBounds (h.removeFromLeft (32));
+        h.removeFromLeft (14);
+        dice.setBounds (h.removeFromLeft (32));
+        h.removeFromLeft (12);
+        modeSwitch.setBounds (h.removeFromLeft (156).withSizeKeepingCentre (156, 28));
         settingsButton.setBounds (h.removeFromRight (32));
         h.removeFromRight (10);
         outMeter.setBounds (h.removeFromRight (140));
@@ -271,6 +321,7 @@ void ChromaEditor::timerCallback()
         if (order[(size_t) s] != shownOrder[(size_t) s]) { shownOrder[(size_t) s] = order[(size_t) s]; changed = true; }
     }
     if (changed) panel.refresh();
+    modeSwitch.setSelectedValue ((int) proc.getChainMode());   // пресет или проект могли сменить режим
 
     const int sel = rack.getSelected();
     int pos = 0;

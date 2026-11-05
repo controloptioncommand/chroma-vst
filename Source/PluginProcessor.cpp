@@ -76,6 +76,7 @@ ChromaProcessor::ChromaProcessor()
         adv[(size_t) s].resetToRecipe();
         ophan[(size_t) s].prepare (sr, (uint32_t) (s + 1));
     }
+    ensureScratch (2048);
     presets.loadFactory (0);
 }
 
@@ -86,15 +87,20 @@ bool ChromaProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
     return in == out || (in == juce::AudioChannelSet::mono() && out == juce::AudioChannelSet::stereo());
 }
 
-void ChromaProcessor::prepareToPlay (double sampleRate, int)
+void ChromaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     sr = sampleRate > 0 ? sampleRate : 48000.0;
+    ensureScratch (samplesPerBlock);
     for (int s = 0; s < kSlots; ++s)
     {
         ophan[(size_t) s].prepare (sr, (uint32_t) (s + 1));
         ott[(size_t) s].prepare (sr);
     }
     outGainNow = juce::Decibels::decibelsToGain (outParam->load());
+    modeNow = chainMode.load();
+    modeFade = 1.0f;
+    for (int s = 0; s < kSlots; ++s) branchGain[(size_t) s] = slotActive (s) ? 1.0f : 0.0f;
+    dryGain = std::any_of (branchGain.begin(), branchGain.end(), [] (float g) { return g > 0.0f; }) ? 0.0f : 1.0f;
 }
 
 // ---------------------------------------------------------------------------
@@ -119,6 +125,22 @@ void ChromaProcessor::setOrder (std::array<int, kSlots> o)
     juce::String s;
     for (int v : o) s << v;
     apvts.state.setProperty ("order", s, nullptr);
+}
+
+void ChromaProcessor::setChainMode (ChainMode m)
+{
+    chainMode.store ((int) m);
+    apvts.state.setProperty ("mode", m == ChainMode::Parallel ? "parallel" : "serial", nullptr);
+}
+
+void ChromaProcessor::ensureScratch (int samples)
+{
+    samples = juce::jmax (512, samples);
+    if (dryBuf.getNumSamples() >= samples) return;
+    dryBuf.setSize (2, samples);
+    workBuf.setSize (2, samples);
+    accBuf.setSize (2, samples);
+    normBuf.assign ((size_t) samples, 0.0f);
 }
 
 void ChromaProcessor::moveSlot (int fromPos, int toPos)
@@ -169,6 +191,7 @@ void ChromaProcessor::pushRackState()
     juce::String s;
     for (int v : getOrder()) s << v;
     apvts.state.setProperty ("order", s, nullptr);
+    apvts.state.setProperty ("mode", getChainMode() == ChainMode::Parallel ? "parallel" : "serial", nullptr);
     rack.removeAllChildren (nullptr);
     for (int slot = 0; slot < kSlots; ++slot)
     {
@@ -193,6 +216,8 @@ void ChromaProcessor::pullRackState()
         for (int k = 0; k < kSlots; ++k) o[(size_t) k] = s[k] - '0';
     if (! validOrder (o)) o = { 0, 1, 2, 3 };
     setOrder (o);
+    // старые проекты без «mode» — последовательно
+    setChainMode (apvts.state.getProperty ("mode").toString() == "parallel" ? ChainMode::Parallel : ChainMode::Serial);
 
     for (auto& a : adv) a.resetToRecipe();
     const auto rack = apvts.state.getChildWithName ("Rack");
@@ -218,6 +243,7 @@ void ChromaProcessor::onPresetLoaded (const FactoryPreset* fp)
     {
         apvts.state.removeChild (apvts.state.getChildWithName ("Rack"), nullptr);
         apvts.state.setProperty ("order", fp->order, nullptr);
+        apvts.state.setProperty ("mode", fp->mode == ChainMode::Parallel ? "parallel" : "serial", nullptr);
     }
     pullRackState();
 }
@@ -240,6 +266,107 @@ void ChromaProcessor::setStateInformation (const void* data, int sizeInBytes)
 }
 
 // ---------------------------------------------------------------------------
+bool ChromaProcessor::slotActive (int slot) const
+{
+    const auto& p = sp[(size_t) slot];
+    return p.on->load() > 0.5f && juce::roundToInt (p.type->load()) != (int) EffectType::Empty;
+}
+
+void ChromaProcessor::runSlot (int s, float* L, float* R, int n)
+{
+    const auto& p = sp[(size_t) s];
+    const int type = juce::roundToInt (p.type->load());
+    const bool on = p.on->load() > 0.5f;
+    if (type == (int) EffectType::OttStack)
+    {
+        OttParams tp;
+        tp.count = p.count->load();
+        tp.depth = p.ottDepth->load() / 100.0f;
+        tp.time = p.time->load() / 100.0f;
+        tp.upward = p.upward->load() / 100.0f;
+        tp.downward = p.downward->load() / 100.0f;
+        tp.outputDb = p.trim->load();
+        tp.mix = p.mix->load() / 100.0f;
+        ott[(size_t) s].process (L, R, n, tp, on ? &ottViews[(size_t) s] : nullptr);
+    }
+    else if (type == (int) EffectType::Ophan)
+    {
+        OphanParams op;
+        op.rate = p.rate->load();
+        op.drift = p.drift->load() / 100.0f;
+        op.depth = p.depth->load() / 100.0f;
+        op.q = p.q->load() / 100.0f;
+        op.spread = p.spread->load() / 100.0f;
+        op.lowCut = p.lowCut->load();
+        op.shape = juce::roundToInt (p.shape->load());
+        op.mix = p.mix->load() / 100.0f;
+        ophan[(size_t) s].process (L, R, n, op, adv[(size_t) s], on ? &views[(size_t) s] : nullptr);
+    }
+}
+
+// Параллельно: каждая ветка обрабатывает сухой вход, выход — среднее по включённым веткам.
+// Веса плавные (≈ 15 мс): включение/выключение слота не щёлкает; выключенная ветка досчитывается, пока не затихнет.
+// Когда веса докатились: одна ветка — её выход бит-в-бит, ни одной — сухой сигнал бит-в-бит.
+void ChromaProcessor::processParallel (float* L, float* R, int n)
+{
+    const int cap = dryBuf.getNumSamples();
+    const float a = (float) (1.0 - std::exp (-1.0 / (0.015 * sr)));
+    const bool stereo = R != nullptr;
+    bool any = false;
+    for (int s = 0; s < kSlots; ++s) any = any || slotActive (s);
+
+    // одна ветка: x[i] — её выход, вес g плавно к цели
+    auto mixIn = [&] (const float* xl, const float* xr, float& g, float target, int len)
+    {
+        float* al = accBuf.getWritePointer (0);
+        float* ar = accBuf.getWritePointer (1);
+        for (int i = 0; i < len; ++i)
+        {
+            g += (target - g) * a;
+            if (std::abs (target - g) < 1e-4f) g = target;
+            al[i] += g * xl[i];
+            if (stereo) ar[i] += g * xr[i];
+            normBuf[(size_t) i] += g;
+        }
+    };
+
+    for (int pos = 0; pos < n; pos += cap)
+    {
+        const int len = juce::jmin (cap, n - pos);
+        float* l = L + pos;
+        float* r = stereo ? R + pos : nullptr;
+        dryBuf.copyFrom (0, 0, l, len);
+        if (stereo) dryBuf.copyFrom (1, 0, r, len);
+        accBuf.clear (0, len);
+        accBuf.clear (1, 0, len);
+        std::fill (normBuf.begin(), normBuf.begin() + len, 0.0f);
+
+        for (int s = 0; s < kSlots; ++s)
+        {
+            const float target = slotActive (s) ? 1.0f : 0.0f;
+            float& g = branchGain[(size_t) s];
+            if (g == 0.0f && target == 0.0f) continue;
+            workBuf.copyFrom (0, 0, dryBuf, 0, 0, len);
+            if (stereo) workBuf.copyFrom (1, 0, dryBuf, 1, 0, len);
+            runSlot (s, workBuf.getWritePointer (0), stereo ? workBuf.getWritePointer (1) : nullptr, len);
+            mixIn (workBuf.getReadPointer (0), workBuf.getReadPointer (1), g, target, len);
+        }
+        if (dryGain > 0.0f || ! any)
+            mixIn (dryBuf.getReadPointer (0), dryBuf.getReadPointer (1), dryGain, any ? 0.0f : 1.0f, len);
+
+        const float* al = accBuf.getReadPointer (0);
+        const float* ar = accBuf.getReadPointer (1);
+        const float* dl = dryBuf.getReadPointer (0);
+        const float* dr = dryBuf.getReadPointer (1);
+        for (int i = 0; i < len; ++i)
+        {
+            const float w = normBuf[(size_t) i];
+            l[i] = w > 1e-6f ? al[i] / w : dl[i];
+            if (stereo) r[i] = w > 1e-6f ? ar[i] / w : dr[i];
+        }
+    }
+}
+
 void ChromaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
@@ -257,10 +384,9 @@ void ChromaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     for (int c = 0; c < numOut; ++c) ip = juce::jmax (ip, buffer.getMagnitude (c, 0, n));
     inPeak.store (juce::jmax (ip, inPeak.load() * 0.85f));
 
-    const auto order = unpackOrder (orderPacked.load());
-    for (int k = 0; k < kSlots; ++k)
+    // учёт слотов: смена типа или включение — эффект начинает с чистого состояния
+    for (int s = 0; s < kSlots; ++s)
     {
-        const int s = order[(size_t) k];
         const auto& p = sp[(size_t) s];
         const int type = juce::roundToInt (p.type->load());
         const bool on = p.on->load() > 0.5f;
@@ -269,31 +395,37 @@ void ChromaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         lastOn[(size_t) s] = on;
         if (type != (int) EffectType::Ophan || ! on) views[(size_t) s].live.store (false, std::memory_order_relaxed);
         if (type != (int) EffectType::OttStack || ! on) ottViews[(size_t) s].live.store (false, std::memory_order_relaxed);
-        if (! on) continue;
-        if (type == (int) EffectType::OttStack)
+    }
+
+    if (modeNow == (int) ChainMode::Parallel) processParallel (L, R, n);
+    else
+    {
+        const auto order = unpackOrder (orderPacked.load());
+        for (int k = 0; k < kSlots; ++k)
+            if (slotActive (order[(size_t) k])) runSlot (order[(size_t) k], L, R, n);
+    }
+
+    // смена режима: ≈ 8 мс вниз, переключение, ≈ 8 мс вверх (у эффектов одно состояние — двумя схемами сразу не посчитать)
+    {
+        const int want = chainMode.load();
+        const float step = (float) (1.0 / (0.008 * sr)) * (float) n;
+        const float f0 = modeFade, f1 = want != modeNow ? juce::jmax (0.0f, f0 - step) : juce::jmin (1.0f, f0 + step);
+        if (f0 < 1.0f || f1 < 1.0f)
+            for (int c = 0; c < numOut; ++c)
+                buffer.applyGainRamp (c, 0, n, f0, f1);
+        modeFade = f1;
+        if (want != modeNow && f1 <= 0.0f)
         {
-            OttParams tp;
-            tp.count = p.count->load();
-            tp.depth = p.ottDepth->load() / 100.0f;
-            tp.time = p.time->load() / 100.0f;
-            tp.upward = p.upward->load() / 100.0f;
-            tp.downward = p.downward->load() / 100.0f;
-            tp.outputDb = p.trim->load();
-            tp.mix = p.mix->load() / 100.0f;
-            ott[(size_t) s].process (L, R, n, tp, &ottViews[(size_t) s]);
-            continue;
+            modeNow = want;
+            // в тишине веса веток сразу встают в цель
+            bool any = false;
+            for (int s = 0; s < kSlots; ++s)
+            {
+                branchGain[(size_t) s] = slotActive (s) ? 1.0f : 0.0f;
+                any = any || slotActive (s);
+            }
+            dryGain = any ? 0.0f : 1.0f;
         }
-        if (type != (int) EffectType::Ophan) continue;
-        OphanParams op;
-        op.rate = p.rate->load();
-        op.drift = p.drift->load() / 100.0f;
-        op.depth = p.depth->load() / 100.0f;
-        op.q = p.q->load() / 100.0f;
-        op.spread = p.spread->load() / 100.0f;
-        op.lowCut = p.lowCut->load();
-        op.shape = juce::roundToInt (p.shape->load());
-        op.mix = p.mix->load() / 100.0f;
-        ophan[(size_t) s].process (L, R, n, op, adv[(size_t) s], &views[(size_t) s]);
     }
 
     // выход: громкость (плавно) и мягкий лимитер

@@ -154,7 +154,7 @@ void Ophan::process (float* L, float* R, int n, const OphanParams& p, const Opha
     while (pos < n)
     {
         const int len = std::min (kControl, n - pos);
-        const double mixFrom = smMix;
+        const double mixFrom = first ? (double) p.mix : smMix;   // после сброса Mix сразу в цели, без хвоста от прошлого значения
         control (p, adv, view, len);
         const float mix0 = (float) mixFrom, dMix = (float) ((smMix - mixFrom) / len);
 

@@ -8,6 +8,7 @@ namespace chroma
 inline constexpr int kSlots = 4;
 
 enum class EffectType { Empty = 0, Ophan = 1, OttStack = 2 };   // новые — только в конец
+enum class ChainMode { Serial = 0, Parallel = 1 };
 juce::StringArray effectNames();          // для параметра типа слота
 juce::String effectTagline (EffectType);  // подзаголовок эффекта
 
