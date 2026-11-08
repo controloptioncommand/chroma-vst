@@ -1091,7 +1091,7 @@ int main (int argc, char** argv)
         const auto sung = voiceSignal (sr, 12.0, { 196.0, 220.0, 247.0, 262.0, 247.0, 220.0, 196.0, 165.0 }, 1.5);
         writeWav (outDir.getChildFile ("demo_20_voice_dry.wav"), sung, sr);
         k = 21;
-        for (auto* nm : { "We Are Many", "Basso Profondo", "Monastery", "Terraces", "Sirens", "Last Orders" })
+        for (auto* nm : { "We Are Many", "Basso Profondo", "Monastery", "Terraces", "Sirens", "Last Orders", "CARNIVAL" })
             for (int i = 0; i < p.presets.getNumFactory(); ++i)
                 if (juce::String (factoryPresets()[(size_t) i].name) == nm)
                 {

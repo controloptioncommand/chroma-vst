@@ -48,6 +48,11 @@ const std::vector<FactoryPreset>& factoryPresets()
         { "Pandemonium", { { P (0, type), 3 }, { P (0, character), 1 }, { P (0, voices), 64 }, { P (0, pitchSpread), 12 }, { P (0, loose), 200 }, { P (0, space), 70 } } },
         { "Riot", { { P (0, type), 3 }, { P (0, character), 1 }, { P (0, voices), 48 }, { P (0, pitchSpread), 2 },
                     { P (1, type), 2 }, { P (1, count), 6 }, { P (1, trim), -4 } } },
+        // по мотивам кричалки ультрас из Kanye West — CARNIVAL: огромная мужская трибуна, поёт в ритм (Loose ниже),
+        // голоса пониже, открытый стадион; OTT ×4 вполсилы — плотная, но не раздавленная стена
+        { "CARNIVAL", { { P (0, type), 3 }, { P (0, character), 1 }, { P (0, voices), 64 }, { P (0, pitch), -2 }, { P (0, pitchSpread), 1 },
+                        { P (0, loose), 70 }, { P (0, space), 55 },
+                        { P (1, type), 2 }, { P (1, count), 4 }, { P (1, ottDepth), 60 }, { P (1, time), 70 }, { P (1, trim), -6 } } },
     };
     return list;
 }

@@ -103,7 +103,7 @@
 
 ## Пресеты
 
-25 фабричных. Ophan: Biblically Accurate (рецепт один в один), Twerking, Gentle Halo, Sine Choir, Mono Prayer, Glossolalia, Thin Air, Wheels Within Wheels, Six Wings, Be Not Afraid. OTT Stack: Double OTT, Tower of Babel (×40), Gentle Glue, Squash Choir (Ophan → OTT ×12), Angel Crush (OTT ×24 → Ophan). Parallel: Ophanim (два Ophan на одном входе). Legion: We Are Many, Hallelujah, Basso Profondo (мужской хор на октаву ниже), Monastery, Terraces (трибуна на 64 голоса), Sirens (трибуна болельщиц), Last Orders, Pandemonium, Riot (трибуна → OTT ×6). Пресет хранит весь rack: слоты, порядок, режим и Advanced. Свои — меню пресета → Save preset, лежат в `~/Music/chroma/Presets/*.chroma`.
+26 фабричных. Ophan: Biblically Accurate (рецепт один в один), Twerking, Gentle Halo, Sine Choir, Mono Prayer, Glossolalia, Thin Air, Wheels Within Wheels, Six Wings, Be Not Afraid. OTT Stack: Double OTT, Tower of Babel (×40), Gentle Glue, Squash Choir (Ophan → OTT ×12), Angel Crush (OTT ×24 → Ophan). Parallel: Ophanim (два Ophan на одном входе). Legion: We Are Many, Hallelujah, Basso Profondo (мужской хор на октаву ниже), Monastery, Terraces (трибуна на 64 голоса), Sirens (трибуна болельщиц), Last Orders, Pandemonium, Riot (трибуна → OTT ×6), CARNIVAL (по мотивам болельщиков из трека Kanye West — CARNIVAL). Пресет хранит весь rack: слоты, порядок, режим и Advanced. Свои — меню пресета → Save preset, лежат в `~/Music/chroma/Presets/*.chroma`.
 
 ## Две темы
 
