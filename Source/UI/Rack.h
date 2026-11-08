@@ -18,7 +18,8 @@ public:
     void setSelected (int slot);
     int getSelected() const { return selected; }
     std::function<void (int)> onSelect;
-    void update (const std::array<OphanSnapshot, kSlots>& snaps, const std::array<OttSnapshot, kSlots>& ottSnaps, double sampleRate);
+    void update (const std::array<OphanSnapshot, kSlots>& snaps, const std::array<OttSnapshot, kSlots>& ottSnaps,
+                 const std::array<LegionSnapshot, kSlots>& legionSnaps, double sampleRate);
 
     void paint (juce::Graphics& g) override;
     void resized() override {}
@@ -64,6 +65,7 @@ private:
     int hoverArrow = 0;                       // −1 левая, +1 правая
     std::array<OphanSnapshot, kSlots> snaps;
     std::array<OttSnapshot, kSlots> ottSnaps;
+    std::array<LegionSnapshot, kSlots> legionSnaps;
     double sampleRate = 48000.0;
 };
 } // namespace chroma

@@ -105,7 +105,10 @@ ChromaProcessor::ChromaProcessor()
         p.count = get (ParamId::count); p.ottDepth = get (ParamId::ottDepth); p.time = get (ParamId::time);
         p.upward = get (ParamId::upward); p.downward = get (ParamId::downward); p.trim = get (ParamId::trim);
         p.guard = get (ParamId::guard);
+        p.voices = get (ParamId::voices); p.character = get (ParamId::character); p.pitch = get (ParamId::pitch);
+        p.pitchSpread = get (ParamId::pitchSpread); p.loose = get (ParamId::loose); p.space = get (ParamId::space);
         ott[(size_t) s].prepare (sr);
+        legion[(size_t) s].prepare (sr, (uint32_t) (s + 1));
         adv[(size_t) s].resetToRecipe();
         ophan[(size_t) s].prepare (sr, (uint32_t) (s + 1));
     }
@@ -128,6 +131,7 @@ void ChromaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     {
         ophan[(size_t) s].prepare (sr, (uint32_t) (s + 1));
         ott[(size_t) s].prepare (sr);
+        legion[(size_t) s].prepare (sr, (uint32_t) (s + 1));
     }
     outGainNow = juce::Decibels::decibelsToGain (outParam->load());
     modeNow = chainMode.load();
@@ -192,8 +196,7 @@ void ChromaProcessor::moveSlot (int fromPos, int toPos)
 
 void ChromaProcessor::clearSlot (int slot)
 {
-    for (auto* id : { ParamId::on, ParamId::mix, ParamId::rate, ParamId::drift, ParamId::depth, ParamId::q, ParamId::spread, ParamId::lowCut, ParamId::shape,
-                     ParamId::count, ParamId::ottDepth, ParamId::time, ParamId::upward, ParamId::downward, ParamId::trim, ParamId::guard })
+    for (auto* id : slotParamIds())
         if (auto* p = apvts.getParameter (slotParam (slot, id))) p->setValueNotifyingHost (p->getDefaultValue());
     setSlotType (slot, EffectType::Empty);
     setEffectPresetName (slot, {});
@@ -203,8 +206,9 @@ void ChromaProcessor::clearSlot (int slot)
 void ChromaProcessor::copySlot (int from, int to)
 {
     if (from == to) return;
-    for (auto* id : { ParamId::type, ParamId::on, ParamId::mix, ParamId::rate, ParamId::drift, ParamId::depth, ParamId::q, ParamId::spread, ParamId::lowCut, ParamId::shape,
-                     ParamId::count, ParamId::ottDepth, ParamId::time, ParamId::upward, ParamId::downward, ParamId::trim, ParamId::guard })
+    auto ids = slotParamIds();
+    ids.insert (ids.begin(), ParamId::type);
+    for (auto* id : ids)
         if (auto* src = apvts.getParameter (slotParam (from, id)))
             if (auto* dst = apvts.getParameter (slotParam (to, id))) dst->setValueNotifyingHost (src->getValue());
     auto& a = adv[(size_t) from];
@@ -379,7 +383,7 @@ void ChromaProcessor::onPresetLoaded (const FactoryPreset* fp)
         apvts.state.setProperty ("order", fp->order, nullptr);
         apvts.state.setProperty ("mode", fp->mode == ChainMode::Parallel ? "parallel" : "serial", nullptr);
         // имя пресета эффекта: у первого слота каждого эффекта — имя пресета rack (такой же есть в списке пресетов эффекта)
-        std::array<bool, 3> seen {};
+        std::array<bool, kNumEffectTypes> seen {};
         for (int s = 0; s < kSlots; ++s)
         {
             const auto t = getSlotType (s);
@@ -447,6 +451,18 @@ void ChromaProcessor::runSlot (int s, float* L, float* R, int n)
         op.shape = juce::roundToInt (p.shape->load());
         op.mix = p.mix->load() / 100.0f;
         ophan[(size_t) s].process (L, R, n, op, adv[(size_t) s], on ? &views[(size_t) s] : nullptr);
+    }
+    else if (type == (int) EffectType::Legion)
+    {
+        LegionParams lp;
+        lp.voices = p.voices->load();
+        lp.character = juce::roundToInt (p.character->load());
+        lp.pitch = p.pitch->load();
+        lp.spread = p.pitchSpread->load();
+        lp.loose = p.loose->load() / 100.0f;
+        lp.space = p.space->load() / 100.0f;
+        lp.mix = p.mix->load() / 100.0f;
+        legion[(size_t) s].process (L, R, n, lp, on ? &legionViews[(size_t) s] : nullptr);
     }
 }
 
@@ -536,11 +552,18 @@ void ChromaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
         const auto& p = sp[(size_t) s];
         const int type = juce::roundToInt (p.type->load());
         const bool on = p.on->load() > 0.5f;
-        if (type != lastType[(size_t) s] || (on && ! lastOn[(size_t) s])) { ophan[(size_t) s].reset(); ott[(size_t) s].reset(); }
+        if (type != lastType[(size_t) s] || (on && ! lastOn[(size_t) s])) 
+        {
+            // начать с чистого состояния — только тому эффекту, который теперь в слоте
+            if (type == (int) EffectType::Ophan) ophan[(size_t) s].reset();
+            else if (type == (int) EffectType::OttStack) ott[(size_t) s].reset();
+            else if (type == (int) EffectType::Legion) legion[(size_t) s].reset();
+        }
         lastType[(size_t) s] = type;
         lastOn[(size_t) s] = on;
         if (type != (int) EffectType::Ophan || ! on) views[(size_t) s].live.store (false, std::memory_order_relaxed);
         if (type != (int) EffectType::OttStack || ! on) ottViews[(size_t) s].live.store (false, std::memory_order_relaxed);
+        if (type != (int) EffectType::Legion || ! on) legionViews[(size_t) s].live.store (false, std::memory_order_relaxed);
     }
 
     if (modeNow == (int) ChainMode::Parallel) processParallel (L, R, n);

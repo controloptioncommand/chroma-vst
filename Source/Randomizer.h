@@ -10,13 +10,14 @@ struct RandomizerOptions
     {
         Ophan = 0,       // ручки слотов с Ophan
         OttStack,        // ручки слотов с OTT Stack
+        Legion,          // ручки слотов с Legion
         Order,           // порядок слотов (только в Serial)
         Mix,             // Mix слотов, 50–100%
         OphanAdvanced,   // рецепт полос Ophan: частоты, усиление, Q, Drift rate
         NumGroups
     };
 
-    std::array<bool, NumGroups> enabled { true, true, true, true, true };
+    std::array<bool, NumGroups> enabled { true, true, true, true, true, true };
 
     bool allows (Group g) const noexcept { return enabled[(size_t) g]; }
     static juce::String name (Group g);

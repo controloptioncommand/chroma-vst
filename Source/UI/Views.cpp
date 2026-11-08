@@ -8,6 +8,7 @@ namespace
 {
 const char* kTabNames[2] = { "Curves", "Scope" };
 const char* kOttTabNames[2] = { "Stack", "Scope" };
+const char* kCrowdTabNames[2] = { "Crowd", "Scope" };
 constexpr double kPi = 3.141592653589793;
 constexpr float kFMin = 20.0f, kFMax = 20000.0f;
 }
@@ -126,7 +127,8 @@ MainView::MainView()
 {
     setWantsKeyboardFocus (true);
     setTitle ("Main view");
-    setDescription ("Curves: the live EQ curves of the left and right channel over the output spectrum. Scope: the output wave.");
+    setDescription ("Curves: the live EQ curves of the left and right channel over the output spectrum. Stack: what every OTT of the stack does. "
+                    "Crowd: the voices of Legion by stereo place and pitch. Scope: the output wave.");
 }
 
 juce::Colour MainView::background() const { return currentTheme() == ThemeId::Rubber ? Colours::well : Colours::surface; }
@@ -141,7 +143,7 @@ void MainView::setMode (Mode m)
 void MainView::setSlot (const juce::String& c, const OphanSnapshot* s)
 {
     caption = c;
-    ottMode = false;
+    content = Content::Eq;
     snap = s != nullptr ? *s : OphanSnapshot {};
     if (s == nullptr) snap.live = false;
 }
@@ -149,9 +151,64 @@ void MainView::setSlot (const juce::String& c, const OphanSnapshot* s)
 void MainView::setOttSlot (const juce::String& c, const OttSnapshot* s)
 {
     caption = c;
-    ottMode = true;
+    content = Content::Ott;
     ottSnap = s != nullptr ? *s : OttSnapshot {};
     if (s == nullptr) ottSnap.live = false;
+}
+
+void MainView::setLegionSlot (const juce::String& c, const LegionSnapshot* s)
+{
+    caption = c;
+    content = Content::Crowd;
+    legionSnap = s != nullptr ? *s : LegionSnapshot {};
+    if (s == nullptr) legionSnap.live = false;
+}
+
+void LegionSnapshot::read (const LegionView& v)
+{
+    live = v.live.load (std::memory_order_relaxed);
+    count = v.count.load (std::memory_order_relaxed);
+    inputHz = v.inputHz.load (std::memory_order_relaxed);
+    for (int k = 0; k < LegionRecipe::kMaxVoices; ++k)
+    {
+        pan[k] = v.pan[(size_t) k].load (std::memory_order_relaxed);
+        pitch[k] = v.pitch[(size_t) k].load (std::memory_order_relaxed);
+        near[k] = v.near[(size_t) k].load (std::memory_order_relaxed);
+        level[k] = v.level[(size_t) k].load (std::memory_order_relaxed);
+    }
+}
+
+float LegionSnapshot::pitchToUnit (float st)
+{
+    constexpr float k = 1.5f;
+    return std::asinh (juce::jlimit (-kPitchRange, kPitchRange, st) / k) / std::asinh (kPitchRange / k);
+}
+
+// Голос — кружок carrier: ближний крупнее, дальний мельче; заливка ярче, когда голос звучит громче.
+// Дальние рисуются первыми — ближние поверх.
+void LegionSnapshot::paintVoices (juce::Graphics& g, juce::Rectangle<float> a, bool small, juce::Colour back) const
+{
+    const int n = juce::jlimit (0, LegionRecipe::kMaxVoices, (int) std::ceil (count - 1e-3f));
+    std::array<int, LegionRecipe::kMaxVoices> idx {};
+    for (int k = 0; k < n; ++k) idx[(size_t) k] = k;
+    std::sort (idx.begin(), idx.begin() + n, [this] (int x, int y) { return near[x] < near[y]; });
+    for (int i = 0; i < n; ++i)
+    {
+        const int k = idx[(size_t) i];
+        const float fade = juce::jlimit (0.0f, 1.0f, count - (float) k);   // голос, который въезжает
+        const float t = juce::jlimit (0.0f, 1.0f, (level[k] + 42.0f) / 42.0f);
+        const float d = small ? 2.5f + 2.5f * near[k] : 6.0f + 9.0f * near[k];
+        const float x = a.getCentreX() + juce::jlimit (-1.0f, 1.0f, pan[k]) * (a.getWidth() * 0.5f - d);
+        const float y = a.getCentreY() - pitchToUnit (pitch[k]) * (a.getHeight() * 0.5f - d * 0.5f);
+        auto dot = juce::Rectangle<float> (d, d).withCentre ({ x, y });
+        g.setColour (back.interpolatedWith (Colours::carrier, (0.18f + 0.82f * t) * fade));
+        g.fillEllipse (dot);
+        if (! small)
+        {
+            g.setColour (Colours::carrier.withAlpha (fade));
+            g.drawEllipse (dot.reduced (0.5f), 1.0f);
+        }
+    }
 }
 
 void OttSnapshot::read (const OttView& v)
@@ -321,6 +378,33 @@ void MainView::paintStack (juce::Graphics& g, juce::Rectangle<float> a)
                 juce::Justification::centredLeft);
 }
 
+// Толпа: по горизонтали — место в стерео (L / C / R), по вертикали — высота голоса относительно входа
+void MainView::paintCrowd (juce::Graphics& g, juce::Rectangle<float> a)
+{
+    const float dashes[] = { 3.0f, 4.0f };
+    g.setFont (LnF::mono (LnF::Type::footnote));
+    for (int i = 0; i < 3; ++i)
+    {
+        const float x = a.getX() + a.getWidth() * 0.5f * (float) i;
+        g.setColour (Colours::outline);
+        if (i == 1) g.drawVerticalLine ((int) x, a.getY(), a.getBottom());
+        g.setColour (Colours::ink2);
+        const char* names[3] = { "L", "C", "R" };
+        g.drawText (names[i], juce::Rectangle<float> (i == 2 ? x - 40.0f : x + (i == 1 ? 4.0f : 0.0f), a.getBottom() + 2.0f, 40.0f, 14.0f),
+                    i == 2 ? juce::Justification::centredRight : juce::Justification::centredLeft);
+    }
+    for (float st : { 12.0f, 3.0f, 0.0f, -3.0f, -12.0f })
+    {
+        const float y = a.getCentreY() - LegionSnapshot::pitchToUnit (st) * a.getHeight() * 0.5f;
+        g.setColour (Colours::ink2.withAlpha (std::abs (st) < 0.5f ? 0.55f : 0.35f));
+        g.drawDashedLine ({ a.getX(), y, a.getRight(), y }, dashes, 2, 1.0f);
+        g.setColour (Colours::ink2);
+        const auto txt = st > 0 ? "+" + juce::String ((int) st) : st < 0 ? minus() + juce::String ((int) -st) : juce::String ("0");
+        g.drawText (txt, juce::Rectangle<float> (a.getRight() + 4.0f, y - 7.0f, 30.0f, 14.0f), juce::Justification::centredLeft);
+    }
+    if (legionSnap.live) legionSnap.paintVoices (g, a, false, background());
+}
+
 void MainView::paintCurves (juce::Graphics& g, juce::Rectangle<float> a)
 {
     auto yForDb = [&] (float db) { return a.getCentreY() - juce::jlimit (-kDbRange, kDbRange, db) / kDbRange * a.getHeight() * 0.5f; };
@@ -411,7 +495,22 @@ void MainView::paintOverlay (juce::Graphics& g)
     LnF::drawPlate (g, legendArea, 8.0f, plateFill);
     auto r = legendArea.reduced (12.0f, 0.0f);
     g.setFont (LnF::mono (LnF::Type::footnote));
-    if (mode == Curves)
+    if (mode == Curves && content == Content::Crowd)
+    {
+        // легенда толпы: «● Near  ● Far»
+        auto half = r.getWidth() * 0.5f;
+        for (int i = 0; i < 2; ++i)
+        {
+            auto cell = juce::Rectangle<float> (r.getX() + half * (float) i, r.getY(), half, r.getHeight());
+            const float d = i == 0 ? 12.0f : 7.0f;
+            auto dot = cell.removeFromLeft (22.0f).withSizeKeepingCentre (d, d);
+            g.setColour ((currentTheme() == ThemeId::Rubber ? Colours::surface : Colours::well).interpolatedWith (Colours::carrier, i == 0 ? 1.0f : 0.45f));
+            g.fillEllipse (dot);
+            g.setColour (Colours::ink);
+            g.drawText (i == 0 ? "Near" : "Far", cell.withTrimmedLeft (6.0f), juce::Justification::centredLeft);
+        }
+    }
+    else if (mode == Curves)
     {
         // легенда каналов: «— Left  — Right»
         auto half = r.getWidth() * 0.5f;
@@ -419,9 +518,10 @@ void MainView::paintOverlay (juce::Graphics& g)
         {
             auto cell = juce::Rectangle<float> (r.getX() + half * (float) side, r.getY(), half, r.getHeight());
             g.setColour (side == 0 ? Colours::carrier : Colours::modulator);
-            g.fillRoundedRectangle (cell.removeFromLeft (22.0f).withSizeKeepingCentre (18.0f, ottMode ? 8.0f : 3.0f), ottMode ? 2.0f : 1.5f);
+            const bool ott = content == Content::Ott;
+            g.fillRoundedRectangle (cell.removeFromLeft (22.0f).withSizeKeepingCentre (18.0f, ott ? 8.0f : 3.0f), ott ? 2.0f : 1.5f);
             g.setColour (Colours::ink);
-            g.drawText (ottMode ? (side == 0 ? "Up" : "Down") : (side == 0 ? "Left" : "Right"), cell.withTrimmedLeft (6.0f), juce::Justification::centredLeft);
+            g.drawText (ott ? (side == 0 ? "Up" : "Down") : (side == 0 ? "Left" : "Right"), cell.withTrimmedLeft (6.0f), juce::Justification::centredLeft);
         }
     }
     else
@@ -453,7 +553,7 @@ void MainView::paintOverlay (juce::Graphics& g)
         }
         g.setColour (sel ? Colours::ink : Colours::ink2);
         g.setFont (LnF::font (LnF::Type::subheadline, sel));
-        g.drawText (ottMode ? kOttTabNames[i] : kTabNames[i], cell, juce::Justification::centred);
+        g.drawText (content == Content::Ott ? kOttTabNames[i] : content == Content::Crowd ? kCrowdTabNames[i] : kTabNames[i], cell, juce::Justification::centred);
     }
     if (hasKeyboardFocus (false))
         LnF::drawFocusRing (g, tabsArea.expanded (2.0f), tabsArea.getHeight() * 0.5f + 2.0f);
@@ -470,7 +570,8 @@ void MainView::paint (juce::Graphics& g)
         juce::Path clip;
         clip.addRoundedRectangle (r.reduced (1.0f), radius - 1.0f);
         g.reduceClipRegion (clip);
-        if (mode == Curves && ottMode) paintStack (g, r.withTrimmedLeft (16.0f).withTrimmedRight (44.0f).withTrimmedTop (52.0f).withTrimmedBottom (60.0f));
+        if (mode == Curves && content == Content::Ott) paintStack (g, r.withTrimmedLeft (16.0f).withTrimmedRight (44.0f).withTrimmedTop (52.0f).withTrimmedBottom (60.0f));
+        else if (mode == Curves && content == Content::Crowd) paintCrowd (g, r.withTrimmedLeft (16.0f).withTrimmedRight (44.0f).withTrimmedTop (52.0f).withTrimmedBottom (60.0f));
         else if (mode == Curves) paintCurves (g, r.withTrimmedLeft (16.0f).withTrimmedRight (44.0f).withTrimmedTop (52.0f).withTrimmedBottom (60.0f));
         else paintScope (g, r.reduced (1.0f, 46.0f));
         paintOverlay (g);

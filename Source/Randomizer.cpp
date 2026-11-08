@@ -8,6 +8,7 @@ juce::String RandomizerOptions::name (Group g)
     {
         case Ophan:         return "Ophan";
         case OttStack:      return "OTT Stack";
+        case Legion:        return "Legion";
         case Order:         return "Slot order";
         case Mix:           return "Slot mix";
         case OphanAdvanced: return "Ophan advanced (band recipe)";
@@ -18,7 +19,7 @@ juce::String RandomizerOptions::name (Group g)
 
 juce::String RandomizerOptions::prefKey (Group g)
 {
-    static const char* keys[] = { "ophan", "ott", "order", "mix", "advanced" };
+    static const char* keys[] = { "ophan", "ott", "legion", "order", "mix", "advanced" };
     return juce::String ("dice_") + keys[(int) g];
 }
 
@@ -42,7 +43,7 @@ void randomizeRack (ChromaProcessor& p, juce::Random& rng, const RandomizerOptio
     for (int s = 0; s < kSlots; ++s)
     {
         const auto type = p.getSlotType (s);
-        const bool ophan = type == EffectType::Ophan, ott = type == EffectType::OttStack;
+        const bool ophan = type == EffectType::Ophan, ott = type == EffectType::OttStack, legion = type == EffectType::Legion;
         auto pick = [&] (bool fits, G::Group g, const char* id, float v) { if (fits && opt.allows (g)) set (s, id, v); };
 
         // Ophan: макро-ручки
@@ -61,8 +62,16 @@ void randomizeRack (ChromaProcessor& p, juce::Random& rng, const RandomizerOptio
         pick (ott, G::OttStack, ParamId::upward, uni (30.0f, 100.0f));
         pick (ott, G::OttStack, ParamId::downward, uni (30.0f, 100.0f));
 
+        // Legion: голосов чаще немного, высота чаще своя, изредка — на октаву вниз или вверх
+        { const float r = rng.nextFloat(); pick (legion, G::Legion, ParamId::voices, (float) juce::roundToInt (2.0f + 62.0f * r * r)); }
+        pick (legion, G::Legion, ParamId::character, (float) juce::jmin (3, (int) (rng.nextFloat() * 4.0f)));
+        { const float r = rng.nextFloat(), st = (float) juce::roundToInt (uni (-12.0f, 12.0f)); pick (legion, G::Legion, ParamId::pitch, r < 0.6f ? 0.0f : st); }
+        pick (legion, G::Legion, ParamId::pitchSpread, logUni (0.05f, 4.0f));
+        pick (legion, G::Legion, ParamId::loose, uni (30.0f, 160.0f));
+        pick (legion, G::Legion, ParamId::space, uni (10.0f, 80.0f));
+
         // Mix — у любого эффекта
-        pick (ophan || ott, G::Mix, ParamId::mix, uni (50.0f, 100.0f));
+        pick (ophan || ott || legion, G::Mix, ParamId::mix, uni (50.0f, 100.0f));
 
         // рецепт полос Ophan: диапазон частоты вокруг случайной точки шкалы EQ Eight, усиление ±(3…15) дБ, Q 4–18
         auto& a = p.advanced (s);

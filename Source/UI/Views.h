@@ -2,6 +2,7 @@
 #include "Widgets.h"
 #include "../DSP/Ophan.h"
 #include "../DSP/OttStack.h"
+#include "../DSP/Legion.h"
 #include <juce_dsp/juce_dsp.h>
 #include <complex>
 #include <deque>
@@ -49,6 +50,20 @@ struct OttSnapshot
     void read (const OttView& v);
 };
 
+// Снимок Legion: голоса толпы (место в стерео, высота, дальность, активность)
+struct LegionSnapshot
+{
+    bool live = false;
+    float count = 0.0f, inputHz = 0.0f;
+    float pan[LegionRecipe::kMaxVoices] {}, pitch[LegionRecipe::kMaxVoices] {}, near[LegionRecipe::kMaxVoices] {}, level[LegionRecipe::kMaxVoices] {};
+    void read (const LegionView& v);
+    static constexpr float kPitchRange = 24.0f;   // шкала высоты, ± полутоны
+    // высота → −1…+1: шкала сжата к краям (asinh) — разброс в доли полутона и сдвиг на октаву видны на одной картинке
+    static float pitchToUnit (float semitones);
+    // нарисовать голоса в области: x — стерео, y — высота; small — миниатюра в карточке rack
+    void paintVoices (juce::Graphics& g, juce::Rectangle<float> area, bool small, juce::Colour background) const;
+};
+
 // Главный вид: кривые EQ левого и правого канала поверх спектра выхода (Curves) или осциллограмма (Scope)
 class MainView : public juce::Component
 {
@@ -64,6 +79,8 @@ public:
     void setSlot (const juce::String& caption, const OphanSnapshot* snap);
     // слот OTT Stack: вместо кривых — карта ступеней (вкладка Stack)
     void setOttSlot (const juce::String& caption, const OttSnapshot* snap);
+    // слот Legion: вместо кривых — толпа (вкладка Crowd)
+    void setLegionSlot (const juce::String& caption, const LegionSnapshot* snap);
 
     void paint (juce::Graphics& g) override;
     void resized() override;
@@ -79,6 +96,7 @@ private:
     void paintGrid (juce::Graphics& g, juce::Rectangle<float> area, bool dbLines);
     void paintSpectrum (juce::Graphics& g, juce::Rectangle<float> area);
     void paintStack (juce::Graphics& g, juce::Rectangle<float> area);
+    void paintCrowd (juce::Graphics& g, juce::Rectangle<float> area);
     void paintScope (juce::Graphics& g, juce::Rectangle<float> area);
     void paintOverlay (juce::Graphics& g);
     juce::Colour background() const;
@@ -89,7 +107,9 @@ private:
     juce::String caption;
     OphanSnapshot snap;
     OttSnapshot ottSnap;
-    bool ottMode = false;
+    LegionSnapshot legionSnap;
+    enum class Content { Eq, Ott, Crowd };   // что показывает первая вкладка
+    Content content = Content::Eq;
     juce::Rectangle<float> tabsArea, legendArea;
 
     // кольцо выхода

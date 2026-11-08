@@ -1,6 +1,6 @@
-// Офлайн-тест chrōma: фильтры и LFO, Ophan (не тишина, не NaN, ≤ 0 dBFS, L ≠ R, Spread 0 → моно), обход пустых и выключенных
-// слотов, Mix 0, порядок цепочки, режим Parallel, кубик, состояние, пресеты, крайние значения, частоты дискретизации, скорость, демо-WAV,
-// скриншоты интерфейса в обеих темах, About.
+// Офлайн-тест chrōma: фильтры и LFO, Ophan (не тишина, не NaN, ≤ 0 dBFS, L ≠ R, Spread 0 → моно), OTT Stack, Legion (тон входа,
+// сдвиг высоты с формантами на месте, громкость, Mix 0, тишина), обход пустых и выключенных слотов, порядок цепочки, режим Parallel,
+// кубик, состояние, пресеты, крайние значения, частоты дискретизации, скорость, демо-WAV, скриншоты интерфейса в обеих темах, About.
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
@@ -78,6 +78,75 @@ juce::AudioBuffer<float> demoSignal (double sr, double seconds)
         }
     }
     return b;
+}
+
+// поющий голос для Legion: импульсы связок через форманты «а», вибрато; мелодия notes (Гц), у каждой ноты пауза в конце
+juce::AudioBuffer<float> voiceSignal (double sr, double seconds, std::vector<double> notes = { 150.0 }, double noteSec = 1.0, float level = 0.3f)
+{
+    const int n = (int) (seconds * sr);
+    juce::AudioBuffer<float> b (2, n);
+    Svf f1, f2, f3, lp;
+    SvfCoefs::bell (700.0, 4.0, 18.0, sr).applyTo (f1);
+    SvfCoefs::bell (1150.0, 5.0, 14.0, sr).applyTo (f2);
+    SvfCoefs::bell (2600.0, 6.0, 10.0, sr).applyTo (f3);
+    SvfCoefs::lowpass (3500.0, 0.7, sr).applyTo (lp);
+    double ph = 0;
+    for (int i = 0; i < n; ++i)
+    {
+        const double t = (double) i / sr;
+        const int k = (int) (t / noteSec);
+        const double u = t - k * noteSec, len = noteSec * 0.85;
+        const double f0 = notes[(size_t) k % notes.size()] * (1.0 + 0.006 * std::sin (2.0 * 3.141592653589793 * 5.5 * t));
+        ph += f0 / sr;
+        ph -= std::floor (ph);
+        const double env = u < len ? juce::jmin (1.0, u / 0.03) * juce::jmin (1.0, (len - u) / 0.06) : 0.0;
+        const float y = f3.tick (f2.tick (f1.tick (lp.tick ((float) (std::exp (-ph * 6.0) - 0.15)))));
+        const float v = (float) (0.13 * level * y * env);
+        b.setSample (0, i, v);
+        b.setSample (1, i, v);
+    }
+    return b;
+}
+
+// основной тон куска канала 0 по автокорреляции (первый пик выше 90% лучшего)
+double pitchOf (const juce::AudioBuffer<float>& b, double sr, int from, int len)
+{
+    const float* x = b.getReadPointer (0);
+    const int lo = (int) (sr / 1000.0), hi = (int) (sr / 50.0);
+    std::vector<double> c ((size_t) hi + 1, 0.0);
+    double e0 = 0, best = 0;
+    for (int j = 0; j < len; ++j) e0 += (double) x[from + j] * x[from + j];
+    for (int lag = lo; lag <= hi; ++lag)
+    {
+        double s = 0, e = 0;
+        for (int j = 0; j < len; ++j) { s += (double) x[from + j] * x[from + j + lag]; e += (double) x[from + j + lag] * x[from + j + lag]; }
+        c[(size_t) lag] = s / std::sqrt (e0 * e + 1e-20);
+        best = juce::jmax (best, c[(size_t) lag]);
+    }
+    for (int lag = lo; lag <= hi; ++lag)
+        if (c[(size_t) lag] > 0.9 * best)
+        {
+            while (lag < hi && c[(size_t) lag + 1] > c[(size_t) lag]) ++lag;
+            return sr / lag;
+        }
+    return 0.0;
+}
+
+// центр тяжести спектра до 5 кГц (где форманты)
+double centroidOf (const juce::AudioBuffer<float>& b, double sr, int from)
+{
+    constexpr int order = 13, N = 1 << order;
+    juce::dsp::FFT fft (order);
+    std::vector<float> w ((size_t) N * 2, 0.0f);
+    for (int j = 0; j < N; ++j) w[(size_t) j] = b.getSample (0, from + j) * (0.5f - 0.5f * std::cos (6.2831853f * (float) j / (float) N));
+    fft.performFrequencyOnlyForwardTransform (w.data());
+    double num = 0, den = 0;
+    for (int k = 1; k < N / 2; ++k)
+    {
+        const double f = k * sr / N, m = (double) w[(size_t) k] * w[(size_t) k];
+        if (f < 5000.0) { num += f * m; den += m; }
+    }
+    return num / juce::jmax (1e-20, den);
 }
 
 juce::AudioBuffer<float> run (ChromaProcessor& p, const juce::AudioBuffer<float>& in, ChromaEditor* ed = nullptr)
@@ -468,6 +537,146 @@ int main (int argc, char** argv)
         }
     }
 
+    // ---------------------------------------------------------------- Legion
+    std::cout << "legion\n";
+    {
+        auto legionProc = [] (ChromaProcessor& p, double sr)
+        {
+            p.presets.loadFactory (0);
+            p.setSlotType (0, EffectType::Legion);
+            p.prepareToPlay (sr, kBlock);
+        };
+        auto tailRms = [] (const juce::AudioBuffer<float>& b, int from)
+        {
+            double sum = 0;
+            int cnt = 0;
+            for (int c = 0; c < b.getNumChannels(); ++c)
+                for (int i = from; i < b.getNumSamples(); ++i) { sum += (double) b.getSample (c, i) * b.getSample (c, i); ++cnt; }
+            return (float) (10.0 * std::log10 (std::max (1e-20, sum / std::max (1, cnt))));
+        };
+        // частоты дискретизации: не тишина, не NaN, ≤ 0 dBFS, L ≠ R; тон входа узнан
+        for (double sr : { 44100.0, 48000.0, 96000.0 })
+        {
+            ChromaProcessor p;
+            legionProc (p, sr);
+            const auto in = voiceSignal (sr, 4.0, { 150.0, 196.0, 247.0 });
+            auto out = run (p, in);
+            checkAudio (out, "legion @" + juce::String (sr));
+            const float corr = correlation (out);
+            CHECK (corr < 0.98f, "legion: L and R must differ (correlation " << corr << ")");
+            CHECK (maxDiff (out, in) > 0.01f, "legion changes the sound");
+            // последняя нота — 247 Гц; детектор смотрит в середину ноты
+            ChromaProcessor q;
+            legionProc (q, sr);
+            run (q, voiceSignal (sr, 2.5, { 150.0, 196.0, 247.0 }));   // середина третьей ноты
+            const float hz = q.legionViews[0].inputHz.load();
+            std::cout << "  " << sr << " Hz: peak " << juce::String (stats (out).peak, 3) << ", corr " << juce::String (corr, 3)
+                      << ", input pitch " << juce::String (hz, 1) << " Hz\n";
+            CHECK (std::abs (hz / 247.0f - 1.0f) < 0.03f, "legion: input pitch " << hz << " Hz, expected 247");
+        }
+        // сдвиг высоты: тон голоса меняется, форманты (центр тяжести спектра) остаются рядом
+        {
+            const double sr = 48000.0;
+            const auto in = voiceSignal (sr, 3.0, { 150.0 }, 3.0);
+            const double c0 = centroidOf (in, sr, (int) (1.5 * sr));
+            for (float st : { -12.0f, -5.0f, 0.0f, 7.0f, 12.0f })
+            {
+                ChromaProcessor p;
+                legionProc (p, sr);
+                setParam (p, slotParam (0, ParamId::voices), 2.0f);
+                setParam (p, slotParam (0, ParamId::pitchSpread), 0.0f);
+                setParam (p, slotParam (0, ParamId::loose), 0.0f);
+                setParam (p, slotParam (0, ParamId::space), 0.0f);
+                setParam (p, slotParam (0, ParamId::pitch), st);
+                auto out = run (p, in);
+                const double f = pitchOf (out, sr, (int) (1.5 * sr), 4800), want = 150.0 * std::pow (2.0, st / 12.0);
+                const double c = centroidOf (out, sr, (int) (1.5 * sr));
+                const float lvl = tailRms (out, (int) sr) - tailRms (in, (int) sr);
+                std::cout << "  pitch " << juce::String (st, 0) << " st: " << juce::String (f, 1) << " Hz (want " << juce::String (want, 1)
+                          << "), centroid " << juce::String (c, 0) << " Hz (input " << juce::String (c0, 0) << "), level " << juce::String (lvl, 1) << " dB\n";
+                CHECK (std::abs (f / want - 1.0) < 0.03, "legion: pitch " << st << " st gives " << f << " Hz");
+                // простой сдвиг увёл бы форманты вдвое; здесь — не дальше, чем на треть октавы сверх подстройки за высотой (30%)
+                const double expect = c0 * std::pow (2.0, 0.3 * st / 12.0);
+                CHECK (std::abs (std::log2 (c / expect)) < 0.45, "legion: formants moved at " << st << " st (" << c << " Hz)");
+                CHECK (std::abs (lvl) < 3.0f, "legion: level " << lvl << " dB at " << st << " st");
+            }
+        }
+        // громкость не зависит от числа голосов
+        {
+            const double sr = 48000.0;
+            const auto in = voiceSignal (sr, 3.0, { 150.0, 220.0 });
+            juce::String line = "  level vs input:";
+            for (int ch = 0; ch < 4; ++ch)
+                for (int v : { 2, 16, 64 })
+                {
+                    ChromaProcessor p;
+                    legionProc (p, sr);
+                    setParam (p, slotParam (0, ParamId::character), (float) ch);
+                    setParam (p, slotParam (0, ParamId::voices), (float) v);
+                    setParam (p, slotParam (0, ParamId::space), 0.0f);
+                    auto out = run (p, in);
+                    checkAudio (out, "legion level");
+                    const float lvl = tailRms (out, (int) sr / 2) - tailRms (in, (int) sr / 2);
+                    line << " " << legionCharacters()[ch].substring (0, 2) << v << " " << juce::String (lvl, 1);
+                    CHECK (std::abs (lvl) < 4.0f, "legion: " << legionCharacters()[ch] << " x" << v << " level " << lvl << " dB");
+                }
+            std::cout << line << "\n";
+        }
+        // тишина остаётся тишиной; Mix 0 — сухой бит-в-бит; шум без тона — не тишина
+        {
+            const double sr = 48000.0;
+            ChromaProcessor p;
+            legionProc (p, sr);
+            setParam (p, slotParam (0, ParamId::space), 100.0f);
+            juce::AudioBuffer<float> zero (2, (int) sr);
+            zero.clear();
+            CHECK (stats (run (p, zero)).peak == 0.0f, "legion: silence stays silent");
+            juce::AudioBuffer<float> hiss (2, (int) sr * 2);
+            juce::Random rng (13);
+            for (int c = 0; c < 2; ++c) for (int i = 0; i < hiss.getNumSamples(); ++i) hiss.setSample (c, i, (rng.nextFloat() * 2 - 1) * 0.1f);
+            checkAudio (run (p, hiss), "legion: unpitched noise");
+            CHECK (p.legionViews[0].inputHz.load() == 0.0f, "legion: pitch found in noise");
+            setParam (p, slotParam (0, ParamId::mix), 0.0f);
+            run (p, voiceSignal (sr, 0.5));
+            const auto in2 = voiceSignal (sr, 1.0);
+            CHECK (maxDiff (run (p, in2), in2) == 0.0f, "legion mix 0 → dry");
+        }
+        // на ходу: число голосов 2 ↔ 64, смена характера, крайние значения и громкий вход
+        {
+            const double sr = 48000.0;
+            ChromaProcessor p;
+            legionProc (p, sr);
+            const auto in = voiceSignal (sr, 1.0, { 180.0, 240.0 }, 0.5, 1.0f);
+            juce::AudioBuffer<float> all (2, 0);
+            for (int k = 0; k < 8; ++k)
+            {
+                setParam (p, slotParam (0, ParamId::voices), k % 2 == 0 ? 64.0f : 2.0f);
+                setParam (p, slotParam (0, ParamId::character), (float) (k % 4));
+                auto out = run (p, in);
+                checkAudio (out, "legion switching " + juce::String (k));
+            }
+            CHECK (std::abs (p.legionViews[0].count.load() - 2.0f) < 0.01f, "legion: voices follow the knob");
+            for (auto [id, v] : std::initializer_list<std::pair<const char*, float>> {
+                     { ParamId::voices, 64.0f }, { ParamId::pitch, 12.0f }, { ParamId::pitchSpread, 12.0f }, { ParamId::loose, 200.0f }, { ParamId::space, 100.0f } })
+                setParam (p, slotParam (0, id), v);
+            checkAudio (run (p, voiceSignal (sr, 2.0, { 300.0 }, 1.0, 3.0f)), "legion extremes high");
+            setParam (p, slotParam (0, ParamId::pitch), -12.0f);
+            checkAudio (run (p, testSignal (sr, 2.0, 0.95f, false)), "legion extremes low, loud chord");
+            // моно
+            ChromaProcessor m;
+            juce::AudioProcessor::BusesLayout mono;
+            mono.inputBuses.add (juce::AudioChannelSet::mono());
+            mono.outputBuses.add (juce::AudioChannelSet::mono());
+            m.setBusesLayout (mono);
+            legionProc (m, sr);
+            juce::AudioBuffer<float> one (1, (int) sr * 2);
+            const auto src = voiceSignal (sr, 2.0);
+            one.copyFrom (0, 0, src, 0, 0, one.getNumSamples());
+            const auto ms = stats (run (m, one));
+            CHECK (! ms.nan && ms.peak <= 1.0f && ms.rms > 0.003f, "legion mono");
+        }
+    }
+
     // ---------------------------------------------------------------- порядок, копия, состояние
     std::cout << "rack and state\n";
     {
@@ -537,7 +746,7 @@ int main (int argc, char** argv)
         CHECK (emptyRest, "old project: slots 5-8 not reset to empty");
         CHECK (p.getSlotType (0) == EffectType::Ophan, "old project: slot 1 lost");
         // 8 эффектов в Serial и Parallel
-        for (int s = 0; s < kSlots; ++s) p.setSlotType (s, s % 2 == 0 ? EffectType::Ophan : EffectType::OttStack);
+        for (int s = 0; s < kSlots; ++s) p.setSlotType (s, s % 3 == 0 ? EffectType::Ophan : s % 3 == 1 ? EffectType::OttStack : EffectType::Legion);
         p.prepareToPlay (48000.0, kBlock);
         checkAudio (run (p, testSignal (48000.0, 1.0)), "eight slots serial");
         p.setChainMode (ChainMode::Parallel);
@@ -552,7 +761,9 @@ int main (int argc, char** argv)
         p.presets.loadFactory (0);
         const auto& fo = effectFactoryPresets (EffectType::Ophan);
         const auto& ft = effectFactoryPresets (EffectType::OttStack);
-        std::cout << "  " << fo.size() << " Ophan, " << ft.size() << " OTT Stack\n";
+        const auto& fl = effectFactoryPresets (EffectType::Legion);
+        std::cout << "  " << fo.size() << " Ophan, " << ft.size() << " OTT Stack, " << fl.size() << " Legion\n";
+        CHECK (fl.size() >= 8 && fl[0].name == "We Are Many", "Legion factory effect presets");
         CHECK (fo.size() >= 8 && fo[0].name == "Biblically Accurate", "Ophan factory effect presets");
         CHECK (ft.size() >= 4, "OTT factory effect presets");
         CHECK (p.getEffectPresetName (0) == "Biblically Accurate", "rack preset does not name the effect");
@@ -596,6 +807,17 @@ int main (int argc, char** argv)
         ChromaProcessor q;
         q.setStateInformation (mb.getData(), (int) mb.getSize());
         CHECK (q.getEffectPresetName (1) == ft[1].name, "effect preset name not restored");
+        // Legion: характер и ручки грузятся, пресет Ophan — нет
+        q.setSlotType (3, EffectType::Legion);
+        for (int i = 0; i < (int) fl.size(); ++i)
+            if (fl[(size_t) i].name == "Monastery") q.loadEffectFactory (3, i);
+        auto qv = [&q] (const char* id) { return q.apvts.getRawParameterValue (slotParam (3, id))->load(); };
+        CHECK (juce::roundToInt (qv (ParamId::character)) == 2 && std::abs (qv (ParamId::pitch) + 5.0f) < 0.01f
+               && juce::roundToInt (qv (ParamId::voices)) == 12, "Legion effect preset values");
+        CHECK (! q.applyEffect (3, snap), "Ophan preset applied to Legion");
+        const auto ls = q.captureEffect (3);
+        setParam (q, slotParam (3, ParamId::voices), 50.0f);
+        CHECK (q.applyEffect (3, ls) && juce::roundToInt (qv (ParamId::voices)) == 12, "Legion effect preset round trip");
     }
 
     // ---------------------------------------------------------------- параллельный режим
@@ -706,6 +928,7 @@ int main (int argc, char** argv)
             p.setSlotType (1, EffectType::OttStack);
             p.setSlotType (2, EffectType::Ophan);
             setParam (p, slotParam (2, ParamId::on), 0.0f);
+            p.setSlotType (4, EffectType::Legion);
             setParam (p, ParamId::output, -2.0f);
             p.prepareToPlay (sr, kBlock);
         };
@@ -716,13 +939,16 @@ int main (int argc, char** argv)
         juce::Random rng (5);
         int worstSilent = 0;
         float worstPeak = 0;
-        bool rateChanged = false, countChanged = false, mixChanged = false, advChanged = false, orderChanged = false;
+        bool rateChanged = false, countChanged = false, mixChanged = false, advChanged = false, orderChanged = false, voicesChanged = false, charChanged = false;
         for (int k = 0; k < 40; ++k)
         {
             const float rate0 = value (p, slotParam (0, ParamId::rate)), count0 = value (p, slotParam (1, ParamId::count));
             const float mix0 = value (p, slotParam (0, ParamId::mix)), q0 = p.advanced (0).band[0][2].q.load();
             const auto o0 = p.getOrder();
+            const float voices0 = value (p, slotParam (4, ParamId::voices)), char0 = value (p, slotParam (4, ParamId::character));
             randomizeRack (p, rng);
+            voicesChanged |= value (p, slotParam (4, ParamId::voices)) != voices0;
+            charChanged |= value (p, slotParam (4, ParamId::character)) != char0;
             rateChanged |= value (p, slotParam (0, ParamId::rate)) != rate0;
             countChanged |= value (p, slotParam (1, ParamId::count)) != count0;
             mixChanged |= value (p, slotParam (0, ParamId::mix)) != mix0;
@@ -736,7 +962,8 @@ int main (int argc, char** argv)
         std::cout << "  40 rolls: worst peak " << juce::String (worstPeak, 3) << ", silent " << worstSilent << "\n";
         CHECK (worstSilent == 0, "dice produced silence");
         CHECK (worstPeak <= 1.0f, "dice: peak above 0 dBFS");
-        CHECK (rateChanged && countChanged && mixChanged && advChanged && orderChanged, "dice did not change something it may change");
+        CHECK (rateChanged && countChanged && mixChanged && advChanged && orderChanged && voicesChanged && charChanged, "dice did not change something it may change");
+        CHECK (p.getSlotType (4) == EffectType::Legion, "dice changed the Legion slot type");
         // никогда не трогает: тип, пустой слот, On, громкость, Output у OTT, режим
         CHECK (p.getSlotType (0) == EffectType::Ophan && p.getSlotType (1) == EffectType::OttStack && p.getSlotType (2) == EffectType::Ophan
                && p.getSlotType (3) == EffectType::Empty, "dice changed effect types");
@@ -755,16 +982,17 @@ int main (int argc, char** argv)
             o.enabled[RandomizerOptions::OttStack] = true;
             juce::MemoryBlock before;
             const float rate0 = value (q, slotParam (0, ParamId::rate)), mix0 = value (q, slotParam (1, ParamId::mix)), q0 = q.advanced (0).band[1][4].q.load();
-            const float count0 = value (q, slotParam (1, ParamId::count));
+            const float count0 = value (q, slotParam (1, ParamId::count)), voices0 = value (q, slotParam (4, ParamId::voices));
             juce::Random r2 (9);
             bool cnt = false;
             for (int k = 0; k < 10; ++k) { randomizeRack (q, r2, o); cnt |= value (q, slotParam (1, ParamId::count)) != count0; }
             CHECK (cnt, "dice: OTT allowed but count never changed");
             CHECK (value (q, slotParam (0, ParamId::rate)) == rate0, "dice: Ophan disabled but changed");
+            CHECK (value (q, slotParam (4, ParamId::voices)) == voices0, "dice: Legion disabled but changed");
             CHECK (value (q, slotParam (1, ParamId::mix)) == mix0, "dice: Mix disabled but changed");
             CHECK (q.advanced (0).band[1][4].q.load() == q0, "dice: advanced disabled but changed");
             const auto o0 = q.getOrder();
-            CHECK (o0[0] == 0 && o0[1] == 1 && o0[2] == 2 && o0[3] == 3, "dice: order disabled but changed");
+            CHECK (o0[0] == 0 && o0[1] == 1 && o0[2] == 2 && o0[3] == 3 && o0[4] == 4, "dice: order disabled but changed");
             // в Parallel порядок не трогается даже при разрешении
             o.enabled.fill (true);
             q.setChainMode (ChainMode::Parallel);
@@ -825,6 +1053,20 @@ int main (int argc, char** argv)
         std::cout << "  4 x OTT Stack x40 + click guard, 10 s stereo in " << juce::String (ms3, 0) << " ms (" << juce::String (10000.0 / ms3, 1) << "x realtime)\n";
         CHECK (ms3 < 9000.0, "OTT stack with click guard too slow");
         checkAudio (out3, "speed OTT guard");
+        for (int s = 0; s < 4; ++s)
+        {
+            p.setSlotType (s, EffectType::Legion);
+            setParam (p, slotParam (s, ParamId::voices), 64.0f);
+            setParam (p, slotParam (s, ParamId::pitch), 7.0f);
+            setParam (p, slotParam (s, ParamId::pitchSpread), 3.0f);
+        }
+        const auto sung = voiceSignal (48000.0, 10.0, { 150.0, 196.0, 247.0, 220.0 });
+        const auto t3 = juce::Time::getMillisecondCounterHiRes();
+        auto out4 = run (p, sung);
+        const double ms4 = juce::Time::getMillisecondCounterHiRes() - t3;
+        std::cout << "  4 x Legion x64, 10 s stereo in " << juce::String (ms4, 0) << " ms (" << juce::String (10000.0 / ms4, 1) << "x realtime)\n";
+        CHECK (ms4 < 6000.0, "Legion too slow");
+        checkAudio (out4, "speed Legion");
     }
 
     // ---------------------------------------------------------------- демо WAV
@@ -844,6 +1086,19 @@ int main (int argc, char** argv)
                     p.prepareToPlay (sr, kBlock);
                     auto out = run (p, in);
                     writeWav (outDir.getChildFile ("demo_" + juce::String (k++).paddedLeft ('0', 2) + "_" + juce::String (nm).replace (" ", "_").toLowerCase() + ".wav"), out, sr);
+                }
+        // Legion — на поющем голосе
+        const auto sung = voiceSignal (sr, 12.0, { 196.0, 220.0, 247.0, 262.0, 247.0, 220.0, 196.0, 165.0 }, 1.5);
+        writeWav (outDir.getChildFile ("demo_20_voice_dry.wav"), sung, sr);
+        k = 21;
+        for (auto* nm : { "We Are Many", "Basso Profondo", "Monastery", "Terraces", "Sirens", "Last Orders" })
+            for (int i = 0; i < p.presets.getNumFactory(); ++i)
+                if (juce::String (factoryPresets()[(size_t) i].name) == nm)
+                {
+                    p.presets.loadFactory (i);
+                    p.prepareToPlay (sr, kBlock);
+                    auto out = run (p, sung);
+                    writeWav (outDir.getChildFile ("demo_" + juce::String (k++) + "_" + juce::String (nm).replace (" ", "_").toLowerCase() + ".wav"), out, sr);
                 }
     }
 
@@ -906,6 +1161,19 @@ int main (int argc, char** argv)
             shoot ("ui_" + tn + "_ott_scope");
             ed->setViewForTest (0);
             ed->selectSlotForTest (0);
+
+            for (int i = 0; i < p.presets.getNumFactory(); ++i)
+                if (juce::String (factoryPresets()[(size_t) i].name) == "Riot") p.presets.loadFactory (i);
+            ed->selectSlotForTest (0);
+            {
+                const auto sungUi = voiceSignal (48000.0, 1.2, { 196.0, 247.0 }, 0.8);   // снимок — посреди второй ноты
+                run (p, sungUi, ed);
+                shoot ("ui_" + tn + "_legion");
+                ed->setViewForTest (1);
+                run (p, sungUi, ed);
+                shoot ("ui_" + tn + "_legion_scope");
+                ed->setViewForTest (0);
+            }
 
             for (int i = 0; i < p.presets.getNumFactory(); ++i)
                 if (juce::String (factoryPresets()[(size_t) i].name) == "Ophanim") p.presets.loadFactory (i);

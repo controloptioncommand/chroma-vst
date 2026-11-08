@@ -37,6 +37,17 @@ const std::vector<FactoryPreset>& factoryPresets()
         { "Ophanim", { { P (0, type), 1 }, { P (0, rate), 0.4f }, { P (0, depth), 160 },
                        { P (1, type), 1 }, { P (1, rate), 0.55f }, { P (1, shape), 0 }, { P (1, q), 150 }, { P (1, depth), 160 } },
           "0123", ChainMode::Parallel },
+        // Legion: хор или толпа из одного голоса (Character: 0 Choir, 1 Stadium, 2 Monks, 3 Tavern)
+        { "We Are Many", { { P (0, type), 3 } } },
+        { "Hallelujah", { { P (0, type), 3 }, { P (0, voices), 32 }, { P (0, pitchSpread), 0.2f }, { P (0, space), 60 } } },
+        { "Basso Profondo", { { P (0, type), 3 }, { P (0, voices), 20 }, { P (0, pitch), -12 }, { P (0, pitchSpread), 0.4f }, { P (0, space), 50 } } },
+        { "Monastery", { { P (0, type), 3 }, { P (0, character), 2 }, { P (0, voices), 12 }, { P (0, pitch), -5 }, { P (0, pitchSpread), 0.15f }, { P (0, space), 70 } } },
+        { "Terraces", { { P (0, type), 3 }, { P (0, character), 1 }, { P (0, voices), 64 }, { P (0, pitchSpread), 2.5f }, { P (0, space), 55 } } },
+        { "Sirens", { { P (0, type), 3 }, { P (0, character), 1 }, { P (0, voices), 40 }, { P (0, pitch), 8 }, { P (0, pitchSpread), 1.5f }, { P (0, space), 50 } } },
+        { "Last Orders", { { P (0, type), 3 }, { P (0, character), 3 }, { P (0, voices), 9 }, { P (0, pitchSpread), 0.8f }, { P (0, loose), 140 }, { P (0, space), 35 } } },
+        { "Pandemonium", { { P (0, type), 3 }, { P (0, character), 1 }, { P (0, voices), 64 }, { P (0, pitchSpread), 12 }, { P (0, loose), 200 }, { P (0, space), 70 } } },
+        { "Riot", { { P (0, type), 3 }, { P (0, character), 1 }, { P (0, voices), 48 }, { P (0, pitchSpread), 2 },
+                    { P (1, type), 2 }, { P (1, count), 6 }, { P (1, trim), -4 } } },
     };
     return list;
 }

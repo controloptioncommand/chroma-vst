@@ -84,7 +84,7 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
 <div class="cover">
   <div class="grid"></div>
   <div class="logo">chrōma</div>
-  <div class="sub">Руководство пользователя · <b>v2.03</b></div>
+  <div class="sub">Руководство пользователя · <b>v3</b></div>
   <div class="shot"><img src="img/main.jpg"></div>
   <div class="foot"><span>effect rack · VST3 · AU · macOS</span><span>made by nnn</span></div>
 </div>
@@ -97,14 +97,15 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <li><span class="mono">03</span>Первый звук за минуту</li>
     <li><span class="mono">04</span>Окно плагина</li>
     <li><span class="mono">05</span>Rack: слоты, порядок и режимы</li>
-    <li><span class="mono">06</span>Главный вид: Curves, Stack и Scope</li>
+    <li><span class="mono">06</span>Главный вид: Curves, Stack, Crowd и Scope</li>
     <li><span class="mono">07</span>Ophan: как устроен</li>
     <li><span class="mono">08</span>Ophan: Macro</li>
     <li><span class="mono">09</span>Ophan: Advanced</li>
     <li><span class="mono">10</span>OTT Stack</li>
-    <li><span class="mono">11</span>Пресеты и настройки</li>
-    <li><span class="mono">12</span>Рецепты</li>
-    <li><span class="mono">13</span>Вопросы и ответы</li>
+    <li><span class="mono">11</span>Legion</li>
+    <li><span class="mono">12</span>Пресеты и настройки</li>
+    <li><span class="mono">13</span>Рецепты</li>
+    <li><span class="mono">14</span>Вопросы и ответы</li>
   </ul>
 
   <h2 style="margin-top: 10mm"><span class="n">01</span>Что такое chrōma</h2>
@@ -114,10 +115,11 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <li>У каждого слота — переключатель <b>On</b>, <b>Mix</b> и ручки эффекта. Автоматизация привязана к слоту и едет вместе с ним.</li>
     <li><b>Ophan</b>, «Biblically accurate EQ»: EQ Eight в режиме L/R, семь узких колоколов на канал и пять LFO, которые гоняют их по спектру и по стереобазе.</li>
     <li><b>OTT Stack</b>: от 2 до 40 OTT подряд одной ручкой, громкость после стопки — отдельной.</li>
-    <li>Живые кривые Ophan и карта ступеней OTT поверх спектра выхода.</li>
+    <li><b>Legion</b>: из одного голоса — хор или толпа до 64 голосов. Церковный хор, футбольная трибуна, монахи, таверна; мужской хор из женского голоса и наоборот.</li>
+    <li>Живые кривые Ophan, карта ступеней OTT и толпа Legion.</li>
     <li><b>Кубик</b>: случайные настройки эффектов, которые стоят в rack, в безопасных пределах.</li>
     <li><b>Пресеты эффектов</b>: у каждого эффекта свои, в заголовке панели слота.</li>
-    <li>16 фабричных пресетов. Весь rack сохраняется в проекте Ableton.</li>
+    <li>25 фабричных пресетов. Весь rack сохраняется в проекте Ableton.</li>
   </ul>
   <div class="note"><b>Как читать.</b> Названия ручек и кнопок даны так, как они подписаны в плагине (по-английски). Диапазоны — моноширинным шрифтом.</div>
 </section>
@@ -155,14 +157,14 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <tr><th style="width:34mm">Зона</th><th>Что там</th></tr>
     <tr><td>Тулбар</td><td>Логотип (клик — страница About), пресет <span class="mono">‹ имя ›</span>, кубик, режим Serial / Parallel, мини-спектрограмма, уровни In и Out, настройки.</td></tr>
     <tr><td>Rack</td><td>Слоты цепочки: 4 места, с четырьмя эффектами — 8 (прокруткой). Выбранный слот обведён.</td></tr>
-    <tr><td>Главный вид</td><td>Curves (Ophan) или Stack (OTT Stack) — что делает выбранный слот, поверх спектра; Scope — волна на выходе.</td></tr>
+    <tr><td>Главный вид</td><td>Curves (Ophan), Stack (OTT Stack) или Crowd (Legion) — что делает выбранный слот; Scope — волна на выходе.</td></tr>
     <tr><td>Панель</td><td>Ручки выбранного слота, пресет эффекта <span class="mono">‹ имя ›</span> (у Ophan — ещё вкладки Macro и Advanced). Внизу — On и CPU.</td></tr>
   </table>
   <h3>Тулбар</h3>
   <figure><img src="img/toolbar.jpg"></figure>
   <ul>
     <li><b>‹ ›</b> — предыдущий и следующий пресет. Клик по имени — список: фабричные, ваши, Save preset…, Show presets folder.</li>
-    <li><b>Кубик</b> — случайные настройки эффектов в rack, см. раздел 11.</li>
+    <li><b>Кубик</b> — случайные настройки эффектов в rack, см. раздел 12.</li>
     <li><b>Serial / Parallel</b> — режим обработки, см. раздел 05.</li>
     <li><b>Мини-спектрограмма</b> — просто украшение: спектр выхода пиксельной лентой.</li>
     <li><b>In</b> — уровень на входе плагина.</li>
@@ -178,7 +180,7 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <h3>До восьми слотов</h3>
   <p>Пока эффектов меньше четырёх, в rack четыре места. Как только эффектов четыре, открываются все восемь. На экране помещаются четыре карточки, остальные — прокруткой: колесом мыши, трекпадом или круглыми стрелками по краям rack (клик — на четыре места). Перетаскивание к краю rack тоже прокручивает. Если снова оставить меньше четырёх эффектов на первых четырёх местах, rack вернётся к четырём.</p>
   <figure><img src="img/rack8.jpg"><figcaption>Четыре эффекта — открыты все восемь мест, справа стрелка к местам 5–8.</figcaption></figure>
-  <p>Сигнал проходит слоты слева направо. На карточке: номер места в цепочке, имя эффекта, переключатель <b>On</b>, меню <b>⋯</b>, миниатюра кривых, Mix и скорость LFO.</p>
+  <p>Сигнал проходит слоты слева направо. На карточке: номер места в цепочке, имя эффекта, переключатель <b>On</b>, меню <b>⋯</b>, миниатюра (кривые Ophan, карта ступеней OTT, толпа Legion), Mix и скорость LFO, число OTT или число голосов.</p>
   <table>
     <tr><th style="width:40mm">Действие</th><th>Как</th></tr>
     <tr><td>Выбрать слот</td><td>Клик по карточке. Панель внизу и главный вид показывают выбранный слот.</td></tr>
@@ -206,16 +208,16 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
 </section>
 
 <section style="break-before: auto">
-  <h2 style="margin-top: 10mm"><span class="n">06</span>Главный вид: Curves, Stack и Scope</h2>
+  <h2 style="margin-top: 10mm"><span class="n">06</span>Главный вид: Curves, Stack, Crowd и Scope</h2>
   <figure style="margin-top:0"><img src="img/view_curves.jpg"><figcaption>Curves: синяя кривая — левый канал, розовая — правый; кружки — полосы 2–8, как в EQ Eight.</figcaption></figure>
   <ul>
-    <li><b>Curves</b> — суммарная АЧХ выбранного слота для левого и правого канала, с учётом Low cut и Mix. Шкала <span class="mono">±30 dB</span>, пунктир через 12 dB. Серая заливка — спектр выхода.</li>
-    <li>Слева сверху — номер слота и текущая скорость LFO с учётом Drift.</li>
+    <li><b>Curves</b> — суммарная АЧХ выбранного слота для левого и правого канала, с учётом Low cut и Mix. Шкала <span class="mono">±30 dB</span>, пунктир через 12 dB. Серая заливка — спектр выхода. Слева сверху — номер слота и текущая скорость LFO с учётом Drift.</li>
     <li><b>Stack</b> — у слота OTT Stack вместо Curves: карта ступеней, см. раздел 10.</li>
+    <li><b>Crowd</b> — у слота Legion вместо Curves: голоса толпы, см. раздел 11.</li>
     <li><b>Scope</b> — волна на выходе, цвет по громкости.</li>
   </ul>
-  <figure><img src="img/view_scope.jpg"><figcaption>Scope.</figcaption></figure>
   <p>Вкладки — снизу справа; с клавиатуры: <span class="mono">← →</span>, когда вид в фокусе.</p>
+  <figure class="mid"><img src="img/view_scope.jpg"><figcaption>Scope.</figcaption></figure>
 </section>
 
 <section>
@@ -301,8 +303,37 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <div class="note"><b>Что добавлено сверх Ableton.</b> Чтобы 40 OTT подряд оставались музыкой: у каждого OTT мягкий потолок <span class="mono">+6 dBFS</span> (ниже 0 dBFS звук не трогается) — иначе атаки копят по +10 дБ на каждой ступени. Ниже <span class="mono">−84 dBFS</span> стопка ничего не поднимает — шум и хвосты не вырастают до громкости музыки; цифровая тишина остаётся тишиной.</div>
 </section>
 
+<section>
+  <h2><span class="n">11</span>Legion</h2>
+  <p class="lead">«Имя мне легион, потому что нас много». Из одного голоса — хор или толпа: церковный хор, футбольная трибуна, монахи, пьяная таверна. Главная ручка — сколько голосов.</p>
+  <figure class="mid" style="margin-top:0"><img src="img/panel_legion.jpg" style="max-width: 92mm"><figcaption>Панель Legion: слева главная ручка Voices, справа характер толпы и ручки.</figcaption></figure>
+  <h3>Как устроен</h3>
+  <p>Каждый голос толпы — копия входа со своей высотой, своим опозданием, своим тембром, местом в стерео и дальностью. Высоту голос меняет так, что тембр остаётся человеческим: вход режется на кусочки длиной в два периода тона и собирается заново с новым шагом (TD-PSOLA). Форманты — то, по чему узнаётся голос, — остаются на месте, голос не становится «мультяшным». У голоса пониже форманты чуть ниже, у голоса повыше — чуть выше (на 30% от сдвига высоты): так звучат люди покрупнее и поменьше.</p>
+  <p>Тон входа Legion узнаёт сам (от <span class="mono">70 Hz</span> до <span class="mono">1 kHz</span>). Эффект рассчитан на <b>один голос</b>: соло-вокал, речь, крик, одну мелодию. На аккордах, барабанах и шуме тона нет — голоса меняют только тембр, время и место, а Pitch и Spread не работают.</p>
+  <table>
+    <tr><th style="width:26mm">Ручка</th><th style="width:30mm">Диапазон</th><th>Что делает</th></tr>
+    <tr><td>Voices</td><td class="r">2–64</td><td>Главная: сколько голосов. По умолчанию 16. Меняется плавно — новые голоса въезжают по одному. Громкость от числа голосов не растёт.</td></tr>
+    <tr><td>Character</td><td class="r">Choir / Stadium / Monks / Tavern</td><td>Кто поёт — см. таблицу ниже. Смена на ходу плавная.</td></tr>
+    <tr><td>Pitch</td><td class="r">−12…+12 st</td><td>Сдвиг высоты всей толпы в полутонах. Вниз — мужской хор, бас; вверх — женский, детский.</td></tr>
+    <tr><td>Spread</td><td class="r">±0–12 st</td><td>Разброс высоты между голосами. <span class="mono">±0.1–0.3</span> — хор в унисон, <span class="mono">±1–3</span> — толпа, где каждый кричит в своём тоне, <span class="mono">±12</span> — мужчины и женщины вперемешку. По умолчанию <span class="mono">±0.30 st</span>.</td></tr>
+    <tr><td>Loose</td><td class="r">0–200%</td><td>Насколько вразнобой: разброс по времени и плавание строя. 0 — все строго вместе, 100% — как задумано характером, 200% — вдвое небрежнее.</td></tr>
+    <tr><td>Space</td><td class="r">0–100%</td><td>Пространство вокруг толпы (зал, собор, стадион). По умолчанию 40%.</td></tr>
+    <tr><td>Mix</td><td class="r">0–100%</td><td>Сухой / обработанный сигнал слота. Ниже 100% исходный голос остаётся солистом перед хором.</td></tr>
+  </table>
+  <table class="keep">
+    <tr><th style="width:26mm">Character</th><th>Какой толпа получается</th></tr>
+    <tr><td>Choir</td><td>Церковный хор: поют вместе (разброс до <span class="mono">22 ms</span>), мягкое вибрато, тёплый звук, большой зал (<span class="mono">2.6 s</span>).</td></tr>
+    <tr><td>Stadium</td><td>Футбольная трибуна: кричат (перегруз и подъём верхней середины), вразнобой (до <span class="mono">140 ms</span>), дальние голоса тише и глуше, открытое поле и эхо от трибун.</td></tr>
+    <tr><td>Monks</td><td>Монахи: строгий унисон без вибрато, тёмный звук, каменный собор (<span class="mono">5.5 s</span>).</td></tr>
+    <tr><td>Tavern</td><td>Таверна: пьяный хор — мимо нот и мимо доли, маленькая комната.</td></tr>
+  </table>
+  <figure class="mid" style="margin: 2mm 0 3mm"><img src="img/view_crowd.jpg" style="max-width: 92mm"><figcaption>Вкладка Crowd: каждый кружок — голос. По горизонтали — место в стерео, по вертикали — высота относительно входа (шкала сжата к краям: видно и разброс в доли полутона, и сдвиг на октаву). Крупный — ближний, мелкий — дальний; ярче — громче звучит сейчас.</figcaption></figure>
+  <p>Слева сверху в главном виде — число голосов и тон входа (<span class="mono">input 247 Hz</span>) или <span class="mono">no pitch</span>, когда тона нет.</p>
+  <div class="note"><b>Голоса опаздывают нарочно.</b> Люди в толпе не попадают в долю: голоса звучат позже входа — от нескольких миллисекунд у Monks до <span class="mono">0.35 s</span> у Stadium с Loose 200%. Хосту это не сообщается — хор и не должен совпадать с солистом. Нужно точнее — Loose ближе к 0 или характер Monks.</div>
+</section>
+
 <section style="break-before: auto">
-  <h2 style="margin-top: 10mm"><span class="n">11</span>Пресеты и настройки</h2>
+  <h2 style="margin-top: 10mm"><span class="n">12</span>Пресеты и настройки</h2>
   <table>
     <tr><th style="width:44mm">Пресет</th><th>Что это</th></tr>
     <tr><td>Biblically Accurate</td><td>Рецепт из видео один в один.</td></tr>
@@ -321,13 +352,22 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <tr><td>Squash Choir</td><td>Ophan → OTT ×12: стопка вытягивает колокола.</td></tr>
     <tr><td>Angel Crush</td><td>OTT ×24 → Ophan.</td></tr>
     <tr><td>Ophanim</td><td>Parallel: два Ophan на одном входе, Stray и Sine, — их колокола расходятся и сходятся.</td></tr>
+    <tr><td>We Are Many</td><td>Legion по умолчанию: хор из 16 голосов.</td></tr>
+    <tr><td>Hallelujah</td><td>Хор из 32 голосов в большом зале.</td></tr>
+    <tr><td>Basso Profondo</td><td>Мужской хор: на октаву ниже, 20 голосов.</td></tr>
+    <tr><td>Monastery</td><td>Монахи: 12 голосов на кварту ниже, собор.</td></tr>
+    <tr><td>Terraces</td><td>Трибуна: 64 голоса, каждый в своём тоне.</td></tr>
+    <tr><td>Sirens</td><td>Трибуна болельщиц: 40 голосов на малую сексту выше.</td></tr>
+    <tr><td>Last Orders</td><td>Таверна: 9 голосов, мимо нот.</td></tr>
+    <tr><td>Pandemonium</td><td>64 голоса вразнобой, высоты от октавы вниз до октавы вверх.</td></tr>
+    <tr><td>Riot</td><td>Трибуна → OTT ×6: толпа, сжатая в стену.</td></tr>
   </table>
   <h3>Пресеты эффекта</h3>
   <p>У каждого эффекта — свои пресеты, отдельно от пресетов rack. Они в заголовке панели слота: <span class="mono">‹ имя ›</span>. Стрелки листают, клик по имени — список, <b>Save effect preset…</b> и <b>Show effect presets folder</b>.</p>
   <ul>
-    <li>В пресет эффекта входят его ручки и Mix, у Ophan — ещё Advanced. On не входит.</li>
-    <li>Фабричные — из пресетов rack выше: 13 для Ophan (Advanced — рецепт), 5 для OTT Stack.</li>
-    <li>Свои лежат в <code>~/Music/chroma/Presets/Effects/Ophan</code> и <code>…/OTT Stack</code> (<code>*.chromafx</code>). Пресет одного эффекта в другой не загрузить.</li>
+    <li>В пресет эффекта входят его ручки и Mix, у Ophan — ещё Advanced, у Legion — характер. On не входит.</li>
+    <li>Фабричные — из пресетов rack выше: 13 для Ophan (Advanced — рецепт), 6 для OTT Stack, 9 для Legion.</li>
+    <li>Свои лежат в <code>~/Music/chroma/Presets/Effects/Ophan</code>, <code>…/OTT Stack</code> и <code>…/Legion</code> (<code>*.chromafx</code>). Пресет одного эффекта в другой не загрузить.</li>
     <li>Новый эффект в слоте — «Init». Duplicate переносит имя, пресет rack называет первый слот каждого эффекта своим именем.</li>
   </ul>
   <p>Пресет хранит весь rack: типы и ручки слотов, порядок, режим Serial / Parallel и Advanced. Громкость Out пресет не меняет. Свои пресеты — меню пресета → <b>Save preset…</b>, лежат в <code>~/Music/chroma/Presets/*.chroma</code>.</p>
@@ -336,6 +376,7 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <ul>
     <li><b>Ophan</b> — Rate <span class="mono">0.08–6 Hz</span>, Drift <span class="mono">0–70%</span>, Depth <span class="mono">60–200%</span>, Q <span class="mono">50–250%</span>, Spread, Low cut <span class="mono">40–600 Hz</span>, Shape.</li>
     <li><b>OTT Stack</b> — Count (чаще мало OTT, изредка башня до <span class="mono">×40</span>), Depth, Time, Upward, Downward.</li>
+    <li><b>Legion</b> — Voices (чаще немного голосов), Character, Pitch (чаще без сдвига, иногда до <span class="mono">±12 st</span>), Spread <span class="mono">±0.05–4 st</span>, Loose <span class="mono">30–160%</span>, Space <span class="mono">10–80%</span>.</li>
     <li><b>Slot order</b> — порядок слотов (только в Serial).</li>
     <li><b>Slot mix</b> — Mix слотов, <span class="mono">50–100%</span>.</li>
     <li><b>Ophan advanced</b> — рецепт полос: диапазоны частоты, усиление <span class="mono">±3…15 dB</span>, Q <span class="mono">4–18</span>, Drift rate. Вернуть рецепт — Advanced → Reset to recipe.</li>
@@ -349,7 +390,7 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
 </section>
 
 <section>
-  <h2><span class="n">12</span>Рецепты</h2>
+  <h2><span class="n">13</span>Рецепты</h2>
   <h3>Пэд, который дышит</h3>
   <p>Biblically Accurate, Rate <span class="mono">0.3–0.5 Hz</span>, Depth <span class="mono">120%</span>, Mix <span class="mono">60–80%</span>. Колокола медленно проплывают по гармоникам аккорда.</p>
   <h3>Вокал «из телефона ангела»</h3>
@@ -360,12 +401,18 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <p>OTT Stack после Ophan (пресет Squash Choir) вытягивает каждый колокол до громкости остального — эффект становится резче. До Ophan (Angel Crush) — Ophan режет уже сплющенный звук. Порядок — перетаскиванием карточек.</p>
   <h3>Хор колёс</h3>
   <p>Пресет Ophanim или два Ophan в Parallel с разными Rate (<span class="mono">0.4</span> и <span class="mono">0.55 Hz</span>) и разной Shape. Колокола двух веток то совпадают, то расходятся — получается медленное фазовое движение, которого нет в Serial.</p>
+  <h3>Хор за солистом</h3>
+  <p>Legion, Choir, Voices <span class="mono">16–24</span>, Mix <span class="mono">50–60%</span>: исходный голос остаётся впереди, хор встаёт за ним. Для припева — Hallelujah.</p>
+  <h3>Мужской хор из женского голоса и наоборот</h3>
+  <p>Pitch <span class="mono">−12</span> (Basso Profondo) или <span class="mono">−7</span> для баритонов; вверх — <span class="mono">+7…+12</span> (Sirens). Spread держите маленьким (<span class="mono">±0.2–0.5</span>), чтобы хор пел в один тон.</p>
+  <h3>Стадион</h3>
+  <p>Запишите кричалку одним голосом, Legion → Stadium, Voices <span class="mono">48–64</span>, Spread <span class="mono">±2–3</span>, Space <span class="mono">50–70%</span>. Плотнее и злее — OTT Stack после (пресет Riot).</p>
   <h3>Свой рецепт</h3>
   <p>Во вкладке Advanced сузьте все Freq from / to к одной октаве (например, <span class="mono">800 Hz – 1.6 kHz</span>) — колокола будут «роиться» в одной зоне, как формантный фильтр.</p>
 </section>
 
 <section>
-  <h2><span class="n">13</span>Вопросы и ответы</h2>
+  <h2><span class="n">14</span>Вопросы и ответы</h2>
   <h3>Стало громче или тише</h3>
   <p>При Depth 200% узкие колокола поднимают отдельные гармоники до <span class="mono">+18 dB</span> (полоса 8 — до <span class="mono">+30 dB</span>), а срез низа убирает басы. Подровняйте Out или уменьшите Depth. Выше 0 dBFS выход не поднимется.</p>
   <h3>Свистит</h3>
@@ -373,13 +420,15 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <h3>В моно эффект пропадает</h3>
   <p>Каналы обрабатываются по-разному. Сведите Spread ближе к 0.</p>
   <h3>Есть ли задержка</h3>
-  <p>Нет: фильтры работают без задержки, хосту ничего компенсировать не нужно.</p>
+  <p>У Ophan и OTT Stack — нет: фильтры работают без задержки, хосту ничего компенсировать не нужно. У Legion голоса опаздывают нарочно — так звучит толпа (см. раздел 11).</p>
+  <h3>Legion не меняет высоту</h3>
+  <p>Значит, на входе нет одного тона: аккорд, барабаны, шум или голос тише <span class="mono">−70 dBFS</span>. В главном виде тогда написано <span class="mono">no pitch</span>. Legion рассчитан на один голос — поставьте его на дорожку с соло-вокалом.</p>
   <h3>OTT Stack грузит процессор</h3>
-  <p>40 OTT подряд — около 12% одного ядра (каждый OTT — 7 фильтров на канал). Нужна лёгкость — уменьшите Count.</p>
+  <p>40 OTT подряд — около 12% одного ядра (каждый OTT — 7 фильтров на канал). Нужна лёгкость — уменьшите Count. Legion на 64 голоса — около 6%, на 16 — около 2%.</p>
   <h3>В Parallel эффект слабее</h3>
   <p>Выходы слотов усредняются: при двух слотах каждый звучит наполовину. Нужен один эффект сильнее — выключите остальные или верните Serial.</p>
   <h3>Где другие эффекты</h3>
-  <p>chrōma задумана как rack, эффекты будут добавляться в следующих версиях. Слоты и пресеты из v1 останутся рабочими.</p>
+  <p>chrōma задумана как rack, эффекты добавляются в новых версиях: v1 — Ophan, v2 — OTT Stack, v3 — Legion. Слоты и пресеты из старых версий остаются рабочими.</p>
 </section>
 
 </body>

@@ -322,6 +322,7 @@ void ChromaEditor::timerCallback()
     {
         snaps[(size_t) s].read (proc.views[(size_t) s], proc.apvts.getRawParameterValue (slotParam (s, ParamId::mix))->load() / 100.0f);
         ottSnaps[(size_t) s].read (proc.ottViews[(size_t) s]);
+        legionSnaps[(size_t) s].read (proc.legionViews[(size_t) s]);
     }
 
     // тип слота или порядок сменились (меню, пресет, автоматизация) — обновить панель
@@ -355,13 +356,22 @@ void ChromaEditor::timerCallback()
         caption << "OTT Stack" << midDot() << (os.live ? juce::String::fromUTF8 ("\xc3\x97") + juce::String (juce::roundToInt (os.count)) : juce::String ("off"));
         mainView.setOttSlot (caption, &os);
     }
+    else if (type == EffectType::Legion)
+    {
+        const auto& ls = legionSnaps[(size_t) sel];
+        caption << "Legion" << midDot();
+        if (! ls.live) caption << "off";
+        else caption << juce::roundToInt (ls.count) << " voices" << midDot()
+                     << (ls.inputHz > 0.0f ? "input " + juce::String (juce::roundToInt (ls.inputHz)) + " Hz" : juce::String ("no pitch"));
+        mainView.setLegionSlot (caption, &ls);
+    }
     else mainView.setSlot (caption + "Empty", nullptr);
 
     mainView.setSampleRate (sr);
     mainView.tick();
     mini.setSampleRate (sr);
     mini.tick();
-    rack.update (snaps, ottSnaps, sr);
+    rack.update (snaps, ottSnaps, legionSnaps, sr);
     if (++frame % 15 == 0) panel.repaint();   // значения Advanced после пресета / копии
 
     inMeter.setLevel (proc.inPeak.load());

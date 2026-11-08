@@ -38,7 +38,8 @@ private:
     float startValue = 0;
 };
 
-// Панель выбранного слота: Ophan (вкладки Macro / Advanced), OTT Stack (главная ручка Count) или пустой слот (выбор эффекта)
+// Панель выбранного слота: Ophan (вкладки Macro / Advanced), OTT Stack (главная ручка Count),
+// Legion (главная ручка Voices, характер толпы) или пустой слот (выбор эффекта)
 class SlotPanel : public juce::Component
 {
 public:
@@ -71,11 +72,13 @@ private:
     EffectType shownType = EffectType::Empty;
     bool advancedMode = false;
 
-    Segmented modeSwitch, shapeSwitch;
-    std::unique_ptr<juce::ParameterAttachment> shapeAtt;
+    Segmented modeSwitch, shapeSwitch, characterSwitch;
+    std::unique_ptr<juce::ParameterAttachment> shapeAtt, characterAtt;
     ParamKnob rate { "Rate" }, drift { "Drift" }, depth { "Depth" }, q { "Q" }, spread { "Spread" }, lowCut { "Low cut" }, mix { "Mix" };
     // OTT Stack
     ParamKnob count { "Count" }, ottDepth { "Depth" }, time { "Time" }, upward { "Upward" }, downward { "Downward" }, trim { "Output" };
+    // Legion
+    ParamKnob voices { "Voices" }, pitch { "Pitch" }, pitchSpread { "Spread" }, loose { "Loose" }, space { "Space" };
     ParamToggle onToggle { "On" };
     ParamToggle guardToggle { "Click guard" };   // OTT Stack: защита от всплеска в начале ноты
     juce::Label status;
@@ -84,7 +87,7 @@ private:
     std::vector<std::unique_ptr<DragValue>> cells;
     DragValue driftRate { DragValue::Rate, "Drift rate" };
     juce::TextButton resetButton { "Reset to recipe" };
-    juce::TextButton addOphan, addOtt;
+    juce::TextButton addOphan, addOtt, addLegion;
 
     // пресет эффекта: «‹ имя ›» в заголовке, как пресет rack в тулбаре
     IconButton prevPreset { IconButton::Prev, "Previous effect preset" }, nextPreset { IconButton::Next, "Next effect preset" };
@@ -93,6 +96,7 @@ private:
 
     juce::Rectangle<int> headArea, bodyArea, footArea, gridArea, shapeArea, addArea;
     int ottDividerX = 0;
+    juce::Rectangle<int> characterArea;
     int gridCol0 = 0, gridCellW = 0, gridGroupGap = 0, gridRowH = 0, gridTop = 0;
 };
 } // namespace chroma

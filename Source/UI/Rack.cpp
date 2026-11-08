@@ -43,10 +43,12 @@ void RackStrip::updateDescription()
     setDescription (d + " Arrow keys select, Option+arrows move, Space toggles, Return opens the menu.");
 }
 
-void RackStrip::update (const std::array<OphanSnapshot, kSlots>& s, const std::array<OttSnapshot, kSlots>& o, double sr)
+void RackStrip::update (const std::array<OphanSnapshot, kSlots>& s, const std::array<OttSnapshot, kSlots>& o,
+                        const std::array<LegionSnapshot, kSlots>& lg, double sr)
 {
     snaps = s;
     ottSnaps = o;
+    legionSnaps = lg;
     sampleRate = sr;
     updateShown();
     updateDescription();
@@ -169,6 +171,7 @@ void RackStrip::showMenu (int slot)
     m.addSectionHeader ("Slot " + juce::String (pos + 1));
     m.addItem (1, juce::String ("Ophan") + midDot() + effectTagline (EffectType::Ophan), true, type == EffectType::Ophan);
     m.addItem (2, juce::String ("OTT Stack") + midDot() + effectTagline (EffectType::OttStack), true, type == EffectType::OttStack);
+    m.addItem (3, juce::String ("Legion") + midDot() + effectTagline (EffectType::Legion), true, type == EffectType::Legion);
     m.addSeparator();
     m.addItem (10, "Move left", pos > 0);
     m.addItem (11, "Move right", pos < shown - 1);
@@ -186,9 +189,9 @@ void RackStrip::showMenu (int slot)
     {
         if (safe == nullptr || r == 0) return;
         auto& pr = safe->proc;
-        if (r == 1 || r == 2)
+        if (r >= 1 && r <= 3)
         {
-            const auto t = r == 1 ? EffectType::Ophan : EffectType::OttStack;
+            const auto t = (EffectType) r;
             if (pr.getSlotType (slot) != t) { pr.clearSlot (slot); pr.setSlotType (slot, t); }
         }
         else if (r == 10) pr.moveSlot (pos, pos - 1);
@@ -369,6 +372,11 @@ void RackStrip::paintCard (juce::Graphics& g, int pos)
                 g.fillRect (juce::Rectangle<float> (a.getX() + colW * (float) b + 2.0f, a.getY() + rowH * (float) st, colW - 4.0f, juce::jmax (1.0f, rowH - (rowH > 3.0f ? 1.0f : 0.0f))));
             }
     }
+    else if (type == EffectType::Legion && on && legionSnaps[(size_t) slot].live)
+    {
+        // миниатюра толпы: голоса по стерео и высоте
+        legionSnaps[(size_t) slot].paintVoices (g, in.reduced (8.0f, 5.0f), true, Colours::well);
+    }
     else if (type == EffectType::Ophan && on && sn.live)
     {
         auto a = in.reduced (6.0f, 4.0f);
@@ -397,8 +405,13 @@ void RackStrip::paintCard (juce::Graphics& g, int pos)
     g.setFont (LnF::mono (LnF::Type::footnote));
     g.setColour (Colours::ink2);
     g.drawText ("Mix " + juce::String (juce::roundToInt (raw (proc, slot, ParamId::mix))) + "%", foot, juce::Justification::centredLeft);
-    auto* rightParam = proc.apvts.getParameter (slotParam (slot, type == EffectType::OttStack ? ParamId::count : ParamId::rate));
-    g.drawText (rightParam->getCurrentValueAsText(), foot, juce::Justification::centredRight);
+    if (type == EffectType::Legion)
+        g.drawText (juce::String (juce::roundToInt (raw (proc, slot, ParamId::voices))) + " voices", foot, juce::Justification::centredRight);
+    else
+    {
+        auto* rightParam = proc.apvts.getParameter (slotParam (slot, type == EffectType::OttStack ? ParamId::count : ParamId::rate));
+        g.drawText (rightParam->getCurrentValueAsText(), foot, juce::Justification::centredRight);
+    }
 }
 
 void RackStrip::paint (juce::Graphics& g)

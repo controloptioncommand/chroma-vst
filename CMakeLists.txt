@@ -49,6 +49,7 @@ set(CHROMA_SOURCES
     Source/EffectPresets.cpp
     Source/DSP/Ophan.cpp
     Source/DSP/OttStack.cpp
+    Source/DSP/Legion.cpp
     Source/UI/LookAndFeel.cpp
     Source/UI/Widgets.cpp
     Source/UI/Views.cpp

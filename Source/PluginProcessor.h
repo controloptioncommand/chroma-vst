@@ -5,6 +5,7 @@
 #include "EffectPresets.h"
 #include "DSP/Ophan.h"
 #include "DSP/OttStack.h"
+#include "DSP/Legion.h"
 
 namespace chroma
 {
@@ -27,7 +28,7 @@ public:
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.1; }
+    double getTailLengthSeconds() const override { return 6.0; }   // хвост пространства Legion
 
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
@@ -73,6 +74,7 @@ public:
     // ---- для интерфейса
     std::array<OphanView, kSlots> views;
     std::array<OttView, kSlots> ottViews;
+    std::array<LegionView, kSlots> legionViews;
     static constexpr int kScopeSize = 1 << 15;
     juce::AbstractFifo scopeFifo { kScopeSize };
     std::vector<float> scopeBuf = std::vector<float> (kScopeSize, 0.0f);   // моно-сумма выхода
@@ -90,6 +92,7 @@ private:
     std::array<OphanAdvanced, kSlots> adv;
     std::array<Ophan, kSlots> ophan;
     std::array<OttStack, kSlots> ott;
+    std::array<Legion, kSlots> legion;
     std::atomic<int> orderPacked { 0x76543210 };   // по 4 бита на место
     std::atomic<int> chainMode { (int) ChainMode::Serial };
 
@@ -105,7 +108,8 @@ private:
     {
         std::atomic<float>* type = nullptr, * on = nullptr, * mix = nullptr, * rate = nullptr, * drift = nullptr, * depth = nullptr,
                           * q = nullptr, * spread = nullptr, * lowCut = nullptr, * shape = nullptr,
-                          * count = nullptr, * ottDepth = nullptr, * time = nullptr, * upward = nullptr, * downward = nullptr, * trim = nullptr, * guard = nullptr;
+                          * count = nullptr, * ottDepth = nullptr, * time = nullptr, * upward = nullptr, * downward = nullptr, * trim = nullptr, * guard = nullptr,
+                          * voices = nullptr, * character = nullptr, * pitch = nullptr, * pitchSpread = nullptr, * loose = nullptr, * space = nullptr;
     };
     std::array<SlotParams, kSlots> sp;
     std::atomic<float>* outParam = nullptr;

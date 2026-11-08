@@ -141,9 +141,18 @@ SlotPanel::SlotPanel (ChromaProcessor& p) : proc (p)
     modeSwitch.onChange = [this] (int) { updateVisibility(); };
     shapeSwitch.setTitle ("LFO shape");
     shapeSwitch.setItems ({ { "Sine", 0 }, { "Stray", 1 } });
+    characterSwitch.setTitle ("Crowd character");
+    characterSwitch.setDescription ("Who sings: Choir, Stadium (a football crowd), Monks or Tavern.");
+    {
+        std::vector<Segmented::Item> items;
+        const auto names = legionCharacters();
+        for (int i = 0; i < names.size(); ++i) items.push_back ({ names[i], i });
+        characterSwitch.setItems (items);
+    }
     for (juce::Component* c : std::initializer_list<juce::Component*> { &modeSwitch, &shapeSwitch, &rate, &drift, &depth, &q, &spread, &lowCut, &mix,
                                                                         &onToggle, &guardToggle, &status, &driftRate, &resetButton, &addOphan, &addOtt,
                                                                         &count, &ottDepth, &time, &upward, &downward, &trim,
+                                                                        &characterSwitch, &voices, &pitch, &pitchSpread, &loose, &space, &addLegion,
                                                                         &prevPreset, &presetName, &nextPreset })
         addAndMakeVisible (c);
     presetName.setTitle ("Effect preset");
@@ -152,6 +161,7 @@ SlotPanel::SlotPanel (ChromaProcessor& p) : proc (p)
     prevPreset.onClick = [this] { proc.stepEffectPreset (slot, -1); updatePresetName(); repaint(); };
     nextPreset.onClick = [this] { proc.stepEffectPreset (slot, 1); updatePresetName(); repaint(); };
     count.setBig (true);
+    voices.setBig (true);
     status.setFont (LnF::mono (LnF::Type::footnote));
     status.getProperties().set ("dim", true);
     status.setJustificationType (juce::Justification::centredRight);
@@ -162,6 +172,8 @@ SlotPanel::SlotPanel (ChromaProcessor& p) : proc (p)
     addOphan.onClick = [this] { addEffect (EffectType::Ophan); };
     addOtt.setButtonText (juce::String ("OTT Stack") + midDot() + effectTagline (EffectType::OttStack));
     addOtt.onClick = [this] { addEffect (EffectType::OttStack); };
+    addLegion.setButtonText (juce::String ("Legion") + midDot() + effectTagline (EffectType::Legion));
+    addLegion.onClick = [this] { addEffect (EffectType::Legion); };
 
     driftRate.get = [this] { return adv().driftRate.load(); };
     driftRate.set = [this] (float v) { adv().driftRate.store (v); };
@@ -302,6 +314,15 @@ void SlotPanel::attachSlot()
     upward.attach (proc.apvts, slotParam (slot, ParamId::upward));
     downward.attach (proc.apvts, slotParam (slot, ParamId::downward));
     trim.attach (proc.apvts, slotParam (slot, ParamId::trim));
+    voices.attach (proc.apvts, slotParam (slot, ParamId::voices));
+    pitch.attach (proc.apvts, slotParam (slot, ParamId::pitch));
+    pitchSpread.attach (proc.apvts, slotParam (slot, ParamId::pitchSpread));
+    loose.attach (proc.apvts, slotParam (slot, ParamId::loose));
+    space.attach (proc.apvts, slotParam (slot, ParamId::space));
+    characterAtt = std::make_unique<juce::ParameterAttachment> (*proc.apvts.getParameter (slotParam (slot, ParamId::character)),
+        [this] (float v) { characterSwitch.setSelectedValue (juce::roundToInt (v)); }, nullptr);
+    characterSwitch.onChange = [this] (int v) { characterAtt->setValueAsCompleteGesture ((float) v); };
+    characterAtt->sendInitialUpdate();
     shapeAtt = std::make_unique<juce::ParameterAttachment> (*proc.apvts.getParameter (slotParam (slot, ParamId::shape)),
         [this] (float v) { shapeSwitch.setSelectedValue (juce::roundToInt (v)); }, nullptr);
     shapeSwitch.onChange = [this] (int v) { shapeAtt->setValueAsCompleteGesture ((float) v); };
@@ -319,8 +340,8 @@ void SlotPanel::refresh()
 void SlotPanel::updateVisibility()
 {
     advancedMode = modeSwitch.getSelectedValue() == 1;
-    const bool ophan = shownType == EffectType::Ophan, ottType = shownType == EffectType::OttStack;
-    const bool empty = ! ophan && ! ottType;
+    const bool ophan = shownType == EffectType::Ophan, ottType = shownType == EffectType::OttStack, legionType = shownType == EffectType::Legion;
+    const bool empty = ! ophan && ! ottType && ! legionType;
     modeSwitch.setVisible (ophan);
     for (juce::Component* c : std::initializer_list<juce::Component*> { &prevPreset, &presetName, &nextPreset })
         c->setVisible (! empty);
@@ -330,7 +351,9 @@ void SlotPanel::updateVisibility()
         c->setVisible (ophan && ! advancedMode);
     for (juce::Component* c : std::initializer_list<juce::Component*> { &count, &ottDepth, &time, &upward, &downward, &trim })
         c->setVisible (ottType);
-    mix.setVisible ((ophan && ! advancedMode) || ottType);
+    for (juce::Component* c : std::initializer_list<juce::Component*> { &characterSwitch, &voices, &pitch, &pitchSpread, &loose, &space })
+        c->setVisible (legionType);
+    mix.setVisible ((ophan && ! advancedMode) || ottType || legionType);
     for (auto& c : cells) c->setVisible (ophan && advancedMode);
     driftRate.setVisible (ophan && advancedMode);
     resetButton.setVisible (ophan && advancedMode);
@@ -338,6 +361,7 @@ void SlotPanel::updateVisibility()
     guardToggle.setVisible (ottType);
     addOphan.setVisible (empty);
     addOtt.setVisible (empty);
+    addLegion.setVisible (empty);
     layoutBody();
     repaint();
 }
@@ -384,10 +408,12 @@ void SlotPanel::resized()
     status.setBounds (f.removeFromRight (300));
 
     addArea = bodyArea;
-    auto adds = bodyArea.withSizeKeepingCentre (320, 36 * 2 + 10);
+    auto adds = bodyArea.withSizeKeepingCentre (320, 36 * 3 + 10 * 2);
     addOphan.setBounds (adds.removeFromTop (36));
     adds.removeFromTop (10);
     addOtt.setBounds (adds.removeFromTop (36));
+    adds.removeFromTop (10);
+    addLegion.setBounds (adds.removeFromTop (36));
 }
 
 void SlotPanel::layoutBody()
@@ -401,6 +427,20 @@ void SlotPanel::layoutBody()
         ottDividerX = row.getX() + 18;
         row.removeFromLeft (36);
         layoutRow (row.withSizeKeepingCentre (row.getWidth(), juce::jmin (row.getHeight(), 100)), { &ottDepth, &time, &upward, &downward, &trim, &mix }, 10);
+        return;
+    }
+    if (shownType == EffectType::Legion)
+    {
+        // главная ручка Voices слева; за линией — характер толпы (сегменты с подписью, как Shape у Ophan) и ручки
+        auto row = bodyArea;
+        voices.setBounds (row.removeFromLeft (220).withSizeKeepingCentre (200, juce::jmin (row.getHeight(), 170)));
+        ottDividerX = row.getX() + 18;
+        row.removeFromLeft (36);
+        row = row.withSizeKeepingCentre (row.getWidth(), juce::jmin (row.getHeight(), 100));
+        characterArea = row.removeFromLeft (300);
+        characterSwitch.setBounds (characterArea.withSizeKeepingCentre (284, 30).translated (0, 8));
+        row.removeFromLeft (12);
+        layoutRow (row, { &pitch, &pitchSpread, &loose, &space, &mix }, 10);
         return;
     }
     // Ophan, Macro: форма LFO слева, ручки
@@ -433,6 +473,20 @@ void SlotPanel::paint (juce::Graphics& g)
                           "Count sets how many; Output sets the level after the whole stack.", ta.withTrimmedTop (4), juce::Justification::topLeft, 2, 1.0f);
         g.setColour (Colours::outline);
         g.drawVerticalLine (ottDividerX, (float) bodyArea.getY() + 10.0f, (float) bodyArea.getBottom() - 10.0f);
+        return;
+    }
+    if (shownType == EffectType::Legion)
+    {
+        g.drawText (juce::String ("Legion") + midDot() + effectTagline (EffectType::Legion), ta.removeFromTop (20), juce::Justification::centredLeft);
+        g.setColour (Colours::ink2);
+        g.setFont (LnF::font (LnF::Type::callout));
+        g.drawFittedText ("Turns one voice into a choir or a crowd: every voice is a copy of the input with its own pitch, timing, timbre and place. "
+                          "Voices sets how many; Character sets who they are.", ta.withTrimmedTop (4), juce::Justification::topLeft, 2, 1.0f);
+        g.setColour (Colours::outline);
+        g.drawVerticalLine (ottDividerX, (float) bodyArea.getY() + 10.0f, (float) bodyArea.getBottom() - 10.0f);
+        g.setColour (Colours::ink);
+        g.setFont (LnF::font (LnF::Type::subheadline, true));
+        g.drawText ("Character", characterSwitch.getBounds().translated (0, -22).withHeight (16), juce::Justification::centred);
         return;
     }
     if (shownType == EffectType::Ophan)
