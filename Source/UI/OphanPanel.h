@@ -38,8 +38,36 @@ private:
     float startValue = 0;
 };
 
+// Свои сэмплы нот Psalter: карточка поверх окна (Surface, рамка 1 px, без тени), по строке на ноту —
+// имя сэмпла или встроенная нота, «Load...» и «Clear». Клик мимо карточки или Escape — закрыть.
+class PsalterSamplesPopup : public juce::Component
+{
+public:
+    explicit PsalterSamplesPopup (ChromaProcessor& p);
+    void open (int slot, juce::Rectangle<int> over);   // over — область, над которой встать по центру (панель слота)
+    void close();
+    std::function<void()> onChanged;
+
+    void paint (juce::Graphics& g) override;
+    void resized() override;
+    void mouseDown (const juce::MouseEvent& e) override;
+    bool keyPressed (const juce::KeyPress& k) override;
+
+private:
+    void choose (int note);
+    juce::Rectangle<int> rowArea (int note) const;
+
+    ChromaProcessor& proc;
+    int slot = 0;
+    juce::Rectangle<int> card;
+    std::array<juce::TextButton, 3> loadButtons, clearButtons;
+    juce::TextButton doneButton { "Done" };
+    std::unique_ptr<juce::FileChooser> chooser;
+    juce::File lastFolder;
+};
+
 // Панель выбранного слота: Ophan (вкладки Macro / Advanced), OTT Stack (главная ручка Count),
-// Legion (главная ручка Voices, характер толпы) или пустой слот (выбор эффекта)
+// Legion (главная ручка Voices, характер толпы), Psalter (три ноты, тембр) или пустой слот (выбор эффекта)
 class SlotPanel : public juce::Component
 {
 public:
@@ -50,7 +78,9 @@ public:
     void setStatus (const juce::String& s) { status.setText (s, juce::dontSendNotification); }
     void setAdvancedForTest (bool adv) { modeSwitch.setSelectedValue (adv ? 1 : 0); updateVisibility(); }
     void updatePresetName();         // имя пресета эффекта (могло смениться пресетом rack, копией, шагом)
+    void updateSampleLabels();       // Psalter: ноты из своих сэмплов
     std::function<void()> onSlotChanged;   // эффект добавлен
+    std::function<void (int)> onShowSamples;   // Psalter: открыть свои сэмплы нот слота
 
     void paint (juce::Graphics& g) override;
     void resized() override;
@@ -72,13 +102,17 @@ private:
     EffectType shownType = EffectType::Empty;
     bool advancedMode = false;
 
-    Segmented modeSwitch, shapeSwitch, characterSwitch;
-    std::unique_ptr<juce::ParameterAttachment> shapeAtt, characterAtt;
+    Segmented modeSwitch, shapeSwitch, characterSwitch, timbreSwitch;
+    std::unique_ptr<juce::ParameterAttachment> shapeAtt, characterAtt, timbreAtt;
     ParamKnob rate { "Rate" }, drift { "Drift" }, depth { "Depth" }, q { "Q" }, spread { "Spread" }, lowCut { "Low cut" }, mix { "Mix" };
     // OTT Stack
     ParamKnob count { "Count" }, ottDepth { "Depth" }, time { "Time" }, upward { "Upward" }, downward { "Downward" }, trim { "Output" };
     // Legion
     ParamKnob voices { "Voices" }, pitch { "Pitch" }, pitchSpread { "Spread" }, loose { "Loose" }, space { "Space" };
+    // Psalter
+    std::array<ParamKnob, 3> notes { ParamKnob { "Note 1" }, ParamKnob { "Note 2" }, ParamKnob { "Note 3" } };
+    ParamKnob decay { "Decay" }, tone { "Tone" }, psRate { "Rate" }, psDepth { "Depth" }, width { "Width" };
+    juce::TextButton samplesButton { "Own samples..." };
     ParamToggle onToggle { "On" };
     ParamToggle guardToggle { "Click guard" };   // OTT Stack: защита от всплеска в начале ноты
     juce::Label status;
@@ -87,7 +121,7 @@ private:
     std::vector<std::unique_ptr<DragValue>> cells;
     DragValue driftRate { DragValue::Rate, "Drift rate" };
     juce::TextButton resetButton { "Reset to recipe" };
-    juce::TextButton addOphan, addOtt, addLegion;
+    juce::TextButton addOphan, addOtt, addLegion, addPsalter;
 
     // пресет эффекта: «‹ имя ›» в заголовке, как пресет rack в тулбаре
     IconButton prevPreset { IconButton::Prev, "Previous effect preset" }, nextPreset { IconButton::Next, "Next effect preset" };
@@ -96,7 +130,7 @@ private:
 
     juce::Rectangle<int> headArea, bodyArea, footArea, gridArea, shapeArea, addArea;
     int ottDividerX = 0;
-    juce::Rectangle<int> characterArea;
+    juce::Rectangle<int> characterArea, timbreArea;
     int gridCol0 = 0, gridCellW = 0, gridGroupGap = 0, gridRowH = 0, gridTop = 0;
 };
 } // namespace chroma

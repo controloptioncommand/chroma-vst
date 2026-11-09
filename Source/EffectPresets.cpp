@@ -8,8 +8,17 @@ const std::vector<const char*>& effectParamIds (EffectType t)
     static const std::vector<const char*> ophan { mix, rate, drift, depth, q, spread, lowCut, shape };
     static const std::vector<const char*> ott { mix, count, ottDepth, time, upward, downward, trim, guard };
     static const std::vector<const char*> legion { mix, voices, character, pitch, pitchSpread, loose, space };
+    static const std::vector<const char*> psalter { mix, note1, note2, note3, timbre, decay, tone, psRate, psDepth, width };
     static const std::vector<const char*> none;
-    return t == EffectType::Ophan ? ophan : t == EffectType::OttStack ? ott : t == EffectType::Legion ? legion : none;
+    switch (t)
+    {
+        case EffectType::Ophan: return ophan;
+        case EffectType::OttStack: return ott;
+        case EffectType::Legion: return legion;
+        case EffectType::Psalter: return psalter;
+        case EffectType::Empty: break;
+    }
+    return none;
 }
 
 const std::vector<EffectFactoryPreset>& effectFactoryPresets (EffectType t)

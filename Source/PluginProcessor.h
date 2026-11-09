@@ -1,11 +1,13 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_audio_formats/juce_audio_formats.h>
 #include "Params.h"
 #include "Presets.h"
 #include "EffectPresets.h"
 #include "DSP/Ophan.h"
 #include "DSP/OttStack.h"
 #include "DSP/Legion.h"
+#include "DSP/Psalter.h"
 
 namespace chroma
 {
@@ -13,7 +15,7 @@ class ChromaProcessor : public juce::AudioProcessor
 {
 public:
     ChromaProcessor();
-    ~ChromaProcessor() override = default;
+    ~ChromaProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
@@ -28,7 +30,7 @@ public:
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 6.0; }   // хвост пространства Legion
+    double getTailLengthSeconds() const override { return 6.0; }   // хвост пространства Legion, ноты Psalter до 6 с
 
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
@@ -68,6 +70,16 @@ public:
     OphanAdvanced& advanced (int slot) { return adv[(size_t) juce::jlimit (0, kSlots - 1, slot)]; }
     void resetAdvanced (int slot);
 
+    // свои сэмплы нот Psalter (поток сообщений). Сэмпл заменяет синтезированную ноту; хранится в проекте и в пресете эффекта.
+    static constexpr double kMaxSampleSeconds = 8.0;
+    bool loadPsalterSample (int slot, int note, const juce::File& f);   // false — не аудио или не прочитался
+    bool setPsalterSample (int slot, int note, const juce::AudioBuffer<float>& audio, double rate, const juce::String& name);
+    void clearPsalterSample (int slot, int note);
+    bool hasPsalterSample (int slot, int note) const;
+    juce::String getPsalterSampleName (int slot, int note) const;
+    // для теста и prepareToPlay: собрать IR нот прямо сейчас (иначе их строит фоновый поток за ≈ 0.1–0.3 с)
+    void buildPsalterNow();
+
     juce::AudioProcessorValueTreeState apvts;
     PresetManager presets;
 
@@ -75,6 +87,7 @@ public:
     std::array<OphanView, kSlots> views;
     std::array<OttView, kSlots> ottViews;
     std::array<LegionView, kSlots> legionViews;
+    std::array<PsalterView, kSlots> psalterViews;
     static constexpr int kScopeSize = 1 << 15;
     juce::AbstractFifo scopeFifo { kScopeSize };
     std::vector<float> scopeBuf = std::vector<float> (kScopeSize, 0.0f);   // моно-сумма выхода
@@ -86,6 +99,13 @@ private:
     void onPresetLoaded (const FactoryPreset* fp);
     void ensureScratch (int samples);   // только вне аудиопотока
     bool slotActive (int slot) const;   // не пустой и включён
+    // Psalter: IR нот строит фоновый поток; sync — сразу (вне аудиопотока, до prepare)
+    void servicePsalter (bool sync);
+    PsalterIrSpec psalterSpec (int slot, int note) const;
+    juce::AudioBuffer<float> buildPsalterIr (int slot, int note, const PsalterIrSpec& spec);
+    void writePsalterSamples (juce::ValueTree& t, int slot);
+    void readPsalterSamples (const juce::ValueTree& t, int slot);
+    void clearAllPsalterSamples();
     void runSlot (int slot, float* L, float* R, int n);
     void processParallel (float* L, float* R, int n);
 
@@ -93,6 +113,33 @@ private:
     std::array<Ophan, kSlots> ophan;
     std::array<OttStack, kSlots> ott;
     std::array<Legion, kSlots> legion;
+    juce::dsp::ConvolutionMessageQueue convQueue { 512 };   // общий фоновый поток свёрток (до std::array<Psalter>)
+    std::array<Psalter, kSlots> psalter;
+    juce::CriticalSection psalterLock;   // фоновый поток IR ↔ prepareToPlay
+
+    struct PsalterSample
+    {
+        juce::String name;
+        juce::AudioBuffer<float> audio;   // ≤ 8 с, 1–2 канала
+        double rate = 0.0;
+        juce::MemoryBlock encoded;        // FLAC (или WAV) для проекта и пресета
+        juce::String format;
+        uint32_t version = 0;             // 0 — сэмпла нет
+    };
+    std::array<std::array<PsalterSample, PsalterRecipe::kNotes>, kSlots> samples;
+    std::array<std::array<std::atomic<uint32_t>, PsalterRecipe::kNotes>, kSlots> sampleVersion {};
+    uint32_t sampleCounter = 0;
+    mutable juce::CriticalSection sampleLock;   // поток сообщений ↔ фоновый поток IR ↔ сохранение
+
+    class IrThread : public juce::Thread
+    {
+    public:
+        explicit IrThread (ChromaProcessor& p) : juce::Thread ("chroma Psalter notes"), proc (p) {}
+        void run() override { while (! threadShouldExit()) { proc.servicePsalter (false); wait (25); } }
+    private:
+        ChromaProcessor& proc;
+    };
+    IrThread irThread { *this };
     std::atomic<int> orderPacked { 0x76543210 };   // по 4 бита на место
     std::atomic<int> chainMode { (int) ChainMode::Serial };
 
@@ -109,14 +156,17 @@ private:
         std::atomic<float>* type = nullptr, * on = nullptr, * mix = nullptr, * rate = nullptr, * drift = nullptr, * depth = nullptr,
                           * q = nullptr, * spread = nullptr, * lowCut = nullptr, * shape = nullptr,
                           * count = nullptr, * ottDepth = nullptr, * time = nullptr, * upward = nullptr, * downward = nullptr, * trim = nullptr, * guard = nullptr,
-                          * voices = nullptr, * character = nullptr, * pitch = nullptr, * pitchSpread = nullptr, * loose = nullptr, * space = nullptr;
+                          * voices = nullptr, * character = nullptr, * pitch = nullptr, * pitchSpread = nullptr, * loose = nullptr, * space = nullptr,
+                          * timbre = nullptr, * decay = nullptr, * tone = nullptr, * psRate = nullptr, * psDepth = nullptr, * width = nullptr;
+        std::array<std::atomic<float>*, PsalterRecipe::kNotes> note {};
     };
     std::array<SlotParams, kSlots> sp;
     std::atomic<float>* outParam = nullptr;
     std::array<int, kSlots> lastType {};
     std::array<bool, kSlots> lastOn {};
     float outGainNow = 1.0f;
-    double sr = 48000.0;
+    std::atomic<double> sr { 48000.0 };
+    int blockSize = 512;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChromaProcessor)
 };

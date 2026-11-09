@@ -33,6 +33,7 @@ public:
     void showCreditsForTest (bool show) { showCredits (show); }
     CreditsPage& getCreditsForTest() { return creditsPage; }
     RackStrip& getRackForTest() { return rack; }
+    void showSamplesForTest (bool show) { if (show) samplesPopup.open (rack.getSelected(), panel.getBounds()); else samplesPopup.close(); }
     void pumpForTest() { timerCallback(); }
 
 private:
@@ -71,6 +72,7 @@ private:
     std::array<OphanSnapshot, kSlots> snaps;
     std::array<OttSnapshot, kSlots> ottSnaps;
     std::array<LegionSnapshot, kSlots> legionSnaps;
+    std::array<PsalterSnapshot, kSlots> psalterSnaps;
     std::array<int, kSlots> shownTypes {};
     std::array<int, kSlots> shownOrder {};
     int frame = 0;
@@ -80,6 +82,7 @@ private:
 
     AboutPage about;
     CreditsPage creditsPage;
+    PsalterSamplesPopup samplesPopup { proc };
     std::unique_ptr<juce::AlertWindow> saveWindow;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChromaEditor)

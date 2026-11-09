@@ -3,7 +3,7 @@
 
 namespace chroma
 {
-// Пресет одного эффекта: ручки эффекта и Mix (On не входит), у Ophan — ещё Advanced.
+// Пресет одного эффекта: ручки эффекта и Mix (On не входит), у Ophan — ещё Advanced, у Psalter — свои сэмплы.
 // Фабричные — из фабричных пресетов rack: первый слот этого эффекта в каждом. У Ophan Advanced фабричных — рецепт.
 // Свои — ~/Music/chroma/Presets/Effects/<эффект>/*.chromafx (XML «ChromaEffect»).
 const std::vector<const char*>& effectParamIds (EffectType t);   // id без префикса слота

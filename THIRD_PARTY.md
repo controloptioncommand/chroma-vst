@@ -11,3 +11,6 @@
 
 ## Рецепт Ophan
 Ophan повторяет приём обработки в Ableton Live (EQ Eight в режиме L/R и пять LFO), показанный в коротком видеоуроке «Biblically accurate EQ». Код Ableton не используется: фильтры — SVF по статьям Andrew Simper (Cytomic), LFO — свои.
+
+## Рецепт Psalter
+Psalter повторяет приём @nest.acoustics в Serum 2 (три модуля Convolve с отдельными нотами, Mix каждого ведёт свой случайный LFO), показанный в коротком видео. Код и сэмплы Xfer Records не используются: ноты синтезируются (FM, String, Bell, Glass), свёртка — `juce::dsp::Convolution`.

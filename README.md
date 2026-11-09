@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3-FF6B2C?style=flat-square&labelColor=18191C" alt="version 3">
+  <img src="https://img.shields.io/badge/version-4-FF6B2C?style=flat-square&labelColor=18191C" alt="version 4">
   <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-EDEDE9?style=flat-square&labelColor=18191C" alt="macOS, Apple Silicon">
   <img src="https://img.shields.io/badge/formats-VST3%20%C2%B7%20AU-8EA0FF?style=flat-square&labelColor=18191C" alt="VST3 and AU">
   <img src="https://img.shields.io/badge/vibe-coded-FF7AA2?style=flat-square&labelColor=18191C" alt="vibe-coded">
@@ -24,13 +24,13 @@
 До восьми слотов, сигнал идёт слева направо. У каждого слота — переключатель On, Mix и свои ручки. Пока эффектов меньше четырёх, видно четыре места; как только их четыре — открываются все восемь, на экране четыре, остальные — прокруткой (колесо, трекпад или стрелки по краям rack).
 
 - **Serial / Parallel** — переключатель в тулбаре. Serial: слоты по очереди, порядок слышен. Parallel: каждый включённый слот обрабатывает сухой вход, выходы усредняются (один слот звучит так же, как в Serial). Режим хранится в проекте и пресете.
-- 🎲 **Кубик** в тулбаре: случайные ручки у эффектов, которые стоят в rack, в безопасных пределах. Тип эффекта, пустые слоты, On и громкость не трогает. Что ему можно менять — настройки → Randomizer: Ophan, OTT Stack, Legion, порядок слотов, Mix, рецепт полос Ophan (Advanced).
+- 🎲 **Кубик** в тулбаре: случайные ручки у эффектов, которые стоят в rack, в безопасных пределах. Тип эффекта, пустые слоты, On и громкость не трогает. Что ему можно менять — настройки → Randomizer: Ophan, OTT Stack, Legion, Psalter, порядок слотов, Mix, рецепт полос Ophan (Advanced).
 
 - Порядок — перетаскиванием карточек или в меню слота («⋯» или правый клик): Move left, Move right, Duplicate, Clear slot.
 - Автоматизация привязана к слоту: переставили эффект — его дорожки автоматизации поехали вместе с ним.
 - Выключенный или пустой слот пропускает звук без изменений.
-- **Пресеты эффекта** — в заголовке панели слота `‹ имя ›`: свои и фабричные для каждого эффекта отдельно. Сохраняются ручки, Mix, у Ophan — Advanced, у Legion — характер; лежат в `~/Music/chroma/Presets/Effects/<эффект>/*.chromafx`.
-- Настройки → Credits — страница с теми, кто вдохновил эффекты: @rosco.moon — Ophan, Ableton — OTT Stack.
+- **Пресеты эффекта** — в заголовке панели слота `‹ имя ›`: свои и фабричные для каждого эффекта отдельно. Сохраняются ручки, Mix, у Ophan — Advanced, у Legion — характер, у Psalter — ноты и свои сэмплы; лежат в `~/Music/chroma/Presets/Effects/<эффект>/*.chromafx`.
+- Настройки → Credits — страница с теми, кто вдохновил эффекты: @rosco.moon — Ophan, Ableton — OTT Stack, @nest.acoustics — Psalter.
 
 ## Ophan — Biblically accurate EQ
 
@@ -95,15 +95,33 @@
 
 Честно об ограничениях. Legion следит за **одним** голосом: тон входа он узнаёт сам (70 Гц – 1 кГц). На аккордах, барабанах и шуме тона нет — голоса меняют только тембр, время и место, высоту — нет. Голоса толпы опаздывают нарочно (как живые люди), хосту эта задержка не сообщается. 64 голоса — около 6% одного ядра.
 
+## Psalter — три ноты, которые звенят вместе со звуком
+
+Четвёртый эффект, по рецепту @nest.acoustics (в Serum 2 три Convolve с нотами, Mix каждого ведёт свой случайный LFO). Звук сворачивается с тремя нотами: звенят только те гармоники, которые есть и в звуке, и в аккорде. Новых тонов Psalter не добавляет — он заставляет звучать то, что уже есть во входе. Пила с шумом, бас, аккорды, вокал начинают петь аккордом.
+
+- **Note 1–3** — ноты аккорда (C1–C8), по умолчанию C5 D5 E5, как в рецепте.
+- **Timbre** — чем звучат ноты: **FM** (щипок, как FM Axe), **String**, **Bell**, **Glass**.
+- **Decay** — сколько звенят ноты, 0.2–6 с; **Tone** — темнее или ярче.
+- **Rate** и **Depth** — плавные случайные LFO нот: ноты по очереди проявляются и уходят, а пока нота отдыхает, вместо неё звучит сухой сигнал. **Width** — стерео, **Mix**.
+- **Own samples** — свои сэмплы вместо встроенных нот (WAV, AIFF, FLAC, до 8 с), хранятся в проекте.
+
+Громкость нот сама подстраивается под вход, поэтому общий уровень почти не зависит ни от входа, ни от тембра. Вкладка **Strings** показывает ноты: ряд на ноту, риски — её партиалы над спектром выхода; яркие — нота звенит.
+
+<p align="center">
+  <img src="docs/assets/ui_oxygen_psalter.png" alt="chrōma в светлой теме Oxygen: Psalter в rack, вкладка Strings с тремя рядами рисок-гармоник нот C5, D5, E5 над спектром, панель с ручками Note 1–3, сегментами FM / String / Bell / Glass и ручками Decay, Tone, Rate, Depth, Width, Mix." width="100%">
+</p>
+
+Честно о сходстве. Сэмплов FM Axe из Serum в плагине нет: ноты синтезируются, а свои можно подгрузить. Ноты в Serum стоят подряд, здесь — рядом: каждая сворачивает сухой вход, а пока нота отдыхает, звучит сухой сигнал. Задержки нет, около 7–9% одного ядра.
+
 ## Окно
 
-- **Curves** (у Ophan) — живые кривые левого (синий) и правого (розовый) канала выбранного слота с номерами полос поверх спектра выхода. **Stack** (у OTT Stack) — карта ступеней. **Crowd** (у Legion) — голоса толпы. **Scope** — волна на выходе.
-- На карточках слотов — миниатюры кривых, карты ступеней или толпы, Mix и скорость LFO, число OTT или число голосов.
+- **Curves** (у Ophan) — живые кривые левого (синий) и правого (розовый) канала выбранного слота с номерами полос поверх спектра выхода. **Stack** (у OTT Stack) — карта ступеней. **Crowd** (у Legion) — голоса толпы. **Strings** (у Psalter) — ноты и их гармоники. **Scope** — волна на выходе.
+- На карточках слотов — миниатюры кривых, карты ступеней, толпы или струн, Mix и скорость LFO, число OTT, число голосов или ноты.
 - В тулбаре уровни **In** и **Out** (громкость — перетаскиванием по шкале), мини-спектрограмма — просто для красоты.
 
 ## Пресеты
 
-26 фабричных. Ophan: Biblically Accurate (рецепт один в один), Twerking, Gentle Halo, Sine Choir, Mono Prayer, Glossolalia, Thin Air, Wheels Within Wheels, Six Wings, Be Not Afraid. OTT Stack: Double OTT, Tower of Babel (×40), Gentle Glue, Squash Choir (Ophan → OTT ×12), Angel Crush (OTT ×24 → Ophan). Parallel: Ophanim (два Ophan на одном входе). Legion: We Are Many, Hallelujah, Basso Profondo (мужской хор на октаву ниже), Monastery, Terraces (трибуна на 64 голоса), Sirens (трибуна болельщиц), Last Orders, Pandemonium, Riot (трибуна → OTT ×6), CARNIVAL (по мотивам болельщиков из трека Kanye West — CARNIVAL). Пресет хранит весь rack: слоты, порядок, режим и Advanced. Свои — меню пресета → Save preset, лежат в `~/Music/chroma/Presets/*.chroma`.
+31 фабричный. Ophan: Biblically Accurate (рецепт один в один), Twerking, Gentle Halo, Sine Choir, Mono Prayer, Glossolalia, Thin Air, Wheels Within Wheels, Six Wings, Be Not Afraid. OTT Stack: Double OTT, Tower of Babel (×40), Gentle Glue, Squash Choir (Ophan → OTT ×12), Angel Crush (OTT ×24 → Ophan). Parallel: Ophanim (два Ophan на одном входе). Legion: We Are Many, Hallelujah, Basso Profondo (мужской хор на октаву ниже), Monastery, Terraces (трибуна на 64 голоса), Sirens (трибуна болельщиц), Last Orders, Pandemonium, Riot (трибуна → OTT ×6), CARNIVAL (по мотивам болельщиков из трека Kanye West — CARNIVAL). Psalter: Harmonic Waves (рецепт), Psaltery, Low Bloom (для баса), Minor Drift, Bell Tower. Пресет хранит весь rack: слоты, порядок, режим и Advanced. Свои — меню пресета → Save preset, лежат в `~/Music/chroma/Presets/*.chroma`.
 
 ## Две темы
 
@@ -119,7 +137,7 @@
    Скрипт кладёт `chroma.vst3` и `chroma.component` в `~/Library/Audio/Plug-Ins` и снимает карантин macOS: плагин подписан ad-hoc, без сертификата Apple.
 3. Перезапустите Ableton или Settings → Plug-Ins → Rescan. chrōma — аудиоэффект: кладите его на любую дорожку.
 
-В архиве есть папка `demo`: сухой сигнал и он же через пресеты, для Legion — синтетический поющий голос. Подробное руководство — **[chroma-manual.pdf](docs/chroma-manual.pdf)**, оно же лежит в архиве релиза.
+В архиве есть папка `demo`: сухой сигнал и он же через пресеты, для Legion — синтетический поющий голос, для Psalter — ещё пила с шумом. Подробное руководство — **[chroma-manual.pdf](docs/chroma-manual.pdf)**, оно же лежит в архиве релиза.
 
 Нужен Mac на Apple Silicon и macOS 11 или новее. Каждое изменение в `main` автоматически собирается, проходит pluginval и auval и выкладывается в [Releases](https://github.com/controloptioncommand/chroma-vst/releases).
 
@@ -138,7 +156,7 @@ JUCE 8 скачивается автоматически.
 bash docs/manual/build.sh
 ```
 
-Тест проверяет фильтры и LFO, ровность кроссоверов OTT Stack, сжатие и тишину на 40 ступенях, у Legion — тон входа, сдвиг высоты с формантами на месте и ровную громкость при любом числе голосов, рендерит Ophan на разных частотах дискретизации (не тишина, не NaN, не выше 0 dBFS, каналы различаются), обход пустых и выключенных слотов бит-в-бит, крайние значения, порядок цепочки, режим Parallel (одна ветка = Serial бит-в-бит, всё выключено = сухой сигнал, смена режима на ходу), 40 бросков кубика, сохранение состояния, все пресеты, скорость, пишет демо-WAV и снимает скриншоты интерфейса.
+Тест проверяет фильтры и LFO, ровность кроссоверов OTT Stack, сжатие и тишину на 40 ступенях, у Legion — тон входа, сдвиг высоты с формантами на месте и ровную громкость при любом числе голосов, у Psalter — что шум собирается у гармоник нот, новых тонов не появляется, громкость ровная, хвост гаснет, ноты меняются на ходу и свои сэмплы сохраняются, рендерит Ophan на разных частотах дискретизации (не тишина, не NaN, не выше 0 dBFS, каналы различаются), обход пустых и выключенных слотов бит-в-бит, крайние значения, порядок цепочки, режим Parallel (одна ветка = Serial бит-в-бит, всё выключено = сухой сигнал, смена режима на ходу), 40 бросков кубика, сохранение состояния, все пресеты, скорость, пишет демо-WAV и снимает скриншоты интерфейса.
 
 ## Устройство
 
@@ -147,13 +165,14 @@ bash docs/manual/build.sh
 | `Source/DSP/Ophan.*` | Ophan: SVF-фильтры, рецепт, пять LFO |
 | `Source/DSP/OttStack.*` | OTT Stack: кроссоверы Linkwitz–Riley, сжатие вверх и вниз, до 40 ступеней |
 | `Source/DSP/Legion.*` | Legion: детектор тона YIN, до 64 голосов TD-PSOLA, характеры толпы, пространство (FDN) |
-| `Source/DSP/Svf.h` | SVF-фильтры (Simper): колокол, срезы, фазовращатель |
+| `Source/DSP/Psalter.*` | Psalter: синтез нот (FM, String, Bell, Glass), свёртка без задержки, случайные LFO нот, подстройка громкости |
+| `Source/DSP/Svf.h` | SVF-фильтры (Simper): колокол, срезы, полки, фазовращатель |
 | `Source/DSP/Lfo.h` | LFO: Sine и Stray |
 | `Source/PluginProcessor.*` | Rack: слоты, порядок, Serial / Parallel, состояние, метры |
 | `Source/Randomizer.*` | Кубик и его «безопасные» диапазоны |
 | `Source/EffectPresets.*` | Пресеты одного эффекта: фабричные и свои |
 | `Source/Params.*`, `Source/Presets.*` | Параметры слотов и пресеты |
-| `Source/UI/` | Интерфейс, темы Oxygen / Rubber, карточки rack, кривые, толпа, панели эффектов, About |
+| `Source/UI/` | Интерфейс, темы Oxygen / Rubber, карточки rack, кривые, толпа, струны, панели эффектов, окно своих сэмплов, About |
 
 Написан на C++ и [JUCE 8](https://juce.com). Чужой код и данные — в [THIRD_PARTY.md](THIRD_PARTY.md).
 

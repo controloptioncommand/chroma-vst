@@ -55,6 +55,10 @@ ChromaEditor::ChromaEditor (ChromaProcessor& p)
     content.addAndMakeVisible (panel);
     rack.onSelect = [this] (int s) { selectSlot (s); };
     panel.onSlotChanged = [this] { rack.repaint(); };
+    content.addChildComponent (samplesPopup);
+    samplesPopup.setBounds (0, 0, kBaseW, kBaseH);
+    panel.onShowSamples = [this] (int s) { samplesPopup.open (s, panel.getBounds()); };
+    samplesPopup.onChanged = [this] { panel.refresh(); rack.repaint(); };
 
     content.addChildComponent (about);
     about.onClose = [this] { showAbout (false); };
@@ -269,6 +273,7 @@ void ChromaEditor::resized()
     content.setBounds (0, 0, kBaseW, kBaseH);
     content.setTransform (juce::AffineTransform::scale ((float) getWidth() / (float) kBaseW));
     about.setBounds (0, 0, kBaseW, kBaseH);
+    samplesPopup.setBounds (0, 0, kBaseW, kBaseH);
 
     auto r = juce::Rectangle<int> (0, 0, kBaseW, kBaseH).reduced (14);
     toolbarArea = r.removeFromTop (52);
@@ -323,6 +328,14 @@ void ChromaEditor::timerCallback()
         snaps[(size_t) s].read (proc.views[(size_t) s], proc.apvts.getRawParameterValue (slotParam (s, ParamId::mix))->load() / 100.0f);
         ottSnaps[(size_t) s].read (proc.ottViews[(size_t) s]);
         legionSnaps[(size_t) s].read (proc.legionViews[(size_t) s]);
+        auto& ps = psalterSnaps[(size_t) s];
+        ps.read (proc.psalterViews[(size_t) s]);
+        ps.timbre = juce::roundToInt (proc.apvts.getRawParameterValue (slotParam (s, ParamId::timbre))->load());
+        for (int k = 0; k < PsalterRecipe::kNotes; ++k)
+        {
+            ps.note[(size_t) k] = juce::roundToInt (proc.apvts.getRawParameterValue (slotParam (s, psalterNoteId (k)))->load());
+            ps.sample[(size_t) k] = proc.hasPsalterSample (s, k);
+        }
     }
 
     // тип слота или порядок сменились (меню, пресет, автоматизация) — обновить панель
@@ -365,14 +378,27 @@ void ChromaEditor::timerCallback()
                      << (ls.inputHz > 0.0f ? "input " + juce::String (juce::roundToInt (ls.inputHz)) + " Hz" : juce::String ("no pitch"));
         mainView.setLegionSlot (caption, &ls);
     }
+    else if (type == EffectType::Psalter)
+    {
+        const auto& ps = psalterSnaps[(size_t) sel];
+        caption << "Psalter" << midDot();
+        if (! ps.live) caption << "off";
+        else
+        {
+            for (int k = 0; k < PsalterRecipe::kNotes; ++k)
+                caption << (k > 0 ? " " : "") << (ps.sample[(size_t) k] ? juce::String ("sample") : PsalterRecipe::noteName (ps.note[(size_t) k]));
+            caption << midDot() << psalterTimbres()[ps.timbre];
+        }
+        mainView.setPsalterSlot (caption, &ps);
+    }
     else mainView.setSlot (caption + "Empty", nullptr);
 
     mainView.setSampleRate (sr);
     mainView.tick();
     mini.setSampleRate (sr);
     mini.tick();
-    rack.update (snaps, ottSnaps, legionSnaps, sr);
-    if (++frame % 15 == 0) panel.repaint();   // значения Advanced после пресета / копии
+    rack.update (snaps, ottSnaps, legionSnaps, psalterSnaps, sr);
+    if (++frame % 15 == 0) { panel.repaint(); panel.updateSampleLabels(); }   // значения Advanced, сэмплы — после пресета / копии
 
     inMeter.setLevel (proc.inPeak.load());
     outMeter.setLevel (proc.outPeak.load());

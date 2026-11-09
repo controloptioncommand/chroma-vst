@@ -73,6 +73,30 @@ struct SvfCoefs
         c.m0 = 1.0f; c.m1 = (float) (-2.0 * k); c.m2 = 0.0f;
         return c;
     }
+    // полки (Psalter: наклон Tone): частота — середина перехода, db — подъём (минус — срез)
+    static SvfCoefs fromG (double g, double k)
+    {
+        SvfCoefs c;
+        const double a1 = 1.0 / (1.0 + g * (g + k));
+        c.a1 = (float) a1;
+        c.a2 = (float) (g * a1);
+        c.a3 = (float) (g * g * a1);
+        return c;
+    }
+    static SvfCoefs lowShelf (double f, double q, double db, double sr)
+    {
+        const double A = std::pow (10.0, db / 40.0), k = 1.0 / q;
+        auto c = fromG (std::tan (3.141592653589793 * f / sr) / std::sqrt (A), k);
+        c.m0 = 1.0f; c.m1 = (float) (k * (A - 1.0)); c.m2 = (float) (A * A - 1.0);
+        return c;
+    }
+    static SvfCoefs highShelf (double f, double q, double db, double sr)
+    {
+        const double A = std::pow (10.0, db / 40.0), k = 1.0 / q;
+        auto c = fromG (std::tan (3.141592653589793 * f / sr) * std::sqrt (A), k);
+        c.m0 = (float) (A * A); c.m1 = (float) (k * (1.0 - A) * A); c.m2 = (float) (1.0 - A * A);
+        return c;
+    }
     void applyTo (Svf& s) const { s.a1 = a1; s.a2 = a2; s.a3 = a3; s.m0 = m0; s.m1 = m1; s.m2 = m2; }
 };
 } // namespace chroma

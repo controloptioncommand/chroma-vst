@@ -32,3 +32,8 @@ save(ott.crop(PANEL), "panel_ott")
 legion = Image.open(src + "ui_rubber_legion.png")
 save(legion.crop(VIEW), "view_crowd")
 save(legion.crop(PANEL), "panel_legion")
+psalter = Image.open(src + "ui_rubber_psalter.png")
+save(psalter.crop(VIEW), "view_strings")
+save(psalter.crop(PANEL), "panel_psalter")
+# окно своих сэмплов: карточка 560×268 по центру панели слота
+save(Image.open(src + "ui_rubber_psalter_samples.png").crop((272, 469, 848, 753)), "panel_samples")

@@ -10,6 +10,7 @@ inline const std::vector<CreditLine>& credits()
     static const std::vector<CreditLine> list = {
         { "@rosco.moon", "Ophan" },
         { "Ableton", "OTT Stack" },
+        { "@nest.acoustics", "Psalter" },
     };
     return list;
 }

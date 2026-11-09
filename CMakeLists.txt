@@ -50,6 +50,7 @@ set(CHROMA_SOURCES
     Source/DSP/Ophan.cpp
     Source/DSP/OttStack.cpp
     Source/DSP/Legion.cpp
+    Source/DSP/Psalter.cpp
     Source/UI/LookAndFeel.cpp
     Source/UI/Widgets.cpp
     Source/UI/Views.cpp

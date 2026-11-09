@@ -9,6 +9,7 @@ namespace
 const char* kTabNames[2] = { "Curves", "Scope" };
 const char* kOttTabNames[2] = { "Stack", "Scope" };
 const char* kCrowdTabNames[2] = { "Crowd", "Scope" };
+const char* kStringsTabNames[2] = { "Strings", "Scope" };
 constexpr double kPi = 3.141592653589793;
 constexpr float kFMin = 20.0f, kFMax = 20000.0f;
 }
@@ -128,7 +129,8 @@ MainView::MainView()
     setWantsKeyboardFocus (true);
     setTitle ("Main view");
     setDescription ("Curves: the live EQ curves of the left and right channel over the output spectrum. Stack: what every OTT of the stack does. "
-                    "Crowd: the voices of Legion by stereo place and pitch. Scope: the output wave.");
+                    "Crowd: the voices of Legion by stereo place and pitch. Strings: the three notes of Psalter and how much each one rings. "
+                    "Scope: the output wave.");
 }
 
 juce::Colour MainView::background() const { return currentTheme() == ThemeId::Rubber ? Colours::well : Colours::surface; }
@@ -162,6 +164,79 @@ void MainView::setLegionSlot (const juce::String& c, const LegionSnapshot* s)
     content = Content::Crowd;
     legionSnap = s != nullptr ? *s : LegionSnapshot {};
     if (s == nullptr) legionSnap.live = false;
+}
+
+void MainView::setPsalterSlot (const juce::String& c, const PsalterSnapshot* s)
+{
+    caption = c;
+    content = Content::Strings;
+    psalterSnap = s != nullptr ? *s : PsalterSnapshot {};
+    if (s == nullptr) psalterSnap.live = false;
+}
+
+void PsalterSnapshot::read (const PsalterView& v)
+{
+    live = v.live.load (std::memory_order_relaxed);
+    for (int k = 0; k < PsalterRecipe::kNotes; ++k) weight[(size_t) k] = v.weight[(size_t) k].load (std::memory_order_relaxed);
+}
+
+void PsalterSnapshot::partials (int timbre, std::vector<std::pair<float, float>>& out)
+{
+    out.clear();
+    switch (timbre)
+    {
+        case PsalterRecipe::Bell:
+            for (auto [r, a] : std::initializer_list<std::pair<float, float>> { { 0.25f, 0.5f }, { 0.5f, 0.7f }, { 0.6f, 0.6f }, { 0.75f, 0.35f }, { 1.0f, 1.0f },
+                                                                                 { 1.25f, 0.45f }, { 1.335f, 0.3f }, { 1.5f, 0.3f }, { 2.0f, 0.25f }, { 2.66f, 0.15f }, { 3.4f, 0.1f } })
+                out.push_back ({ r, a });
+            break;
+        case PsalterRecipe::Glass:
+            out = { { 1.0f, 1.0f }, { 2.0f, 0.22f }, { 3.0f, 0.07f } };
+            break;
+        case PsalterRecipe::String:
+            for (int k = 1; k <= 40; ++k)
+                out.push_back ({ (float) k, (0.08f + std::abs (std::sin (3.14159265f * (float) k * 0.13f))) / std::pow ((float) k, 0.9f) });
+            break;
+        default:   // FM: спектр щипка 1:1 — гармоники, спадают
+            for (int k = 1; k <= 24; ++k) out.push_back ({ (float) k, 1.0f / std::pow ((float) k, 1.2f) });
+            break;
+    }
+}
+
+// Ряд на ноту (1 сверху): риски на партиалах ноты, высота — громкость партиала, цвет — фон, смешанный с carrier
+// по текущему Mix ноты (18–100%). Свой сэмпл — без рисок, подпись «sample».
+void PsalterSnapshot::paintStrings (juce::Graphics& g, juce::Rectangle<float> a, bool small, juce::Colour back, float fMin, float fMax) const
+{
+    std::vector<std::pair<float, float>> ps;
+    partials (timbre, ps);
+    const float rowH = a.getHeight() / (float) PsalterRecipe::kNotes;
+    for (int k = 0; k < PsalterRecipe::kNotes; ++k)
+    {
+        auto row = juce::Rectangle<float> (a.getX(), a.getY() + rowH * (float) k, a.getWidth(), rowH).reduced (0.0f, small ? 1.0f : 4.0f);
+        const float w = live ? juce::jlimit (0.0f, 1.0f, weight[(size_t) k]) : 0.0f;
+        const auto col = back.interpolatedWith (Colours::carrier, 0.18f + 0.82f * w);
+        if (! small)
+        {
+            g.setColour (Colours::outline);
+            g.drawHorizontalLine ((int) row.getBottom(), row.getX(), row.getRight());
+        }
+        if (sample[(size_t) k])
+        {
+            g.setColour (col);
+            g.fillRoundedRectangle (row.withHeight (small ? 2.0f : 3.0f).withY (row.getBottom() - (small ? 2.0f : 3.0f)), 1.0f);
+            continue;
+        }
+        const float hz = (float) PsalterRecipe::noteHz (note[(size_t) k]);
+        g.setColour (col);
+        for (auto [r, amp] : ps)
+        {
+            const float f = hz * r;
+            if (f < fMin || f > fMax) continue;
+            const float x = a.getX() + a.getWidth() * std::log (f / fMin) / std::log (fMax / fMin);
+            const float h = juce::jmax (small ? 2.0f : 3.0f, row.getHeight() * juce::jlimit (0.0f, 1.0f, 0.25f + 0.75f * std::sqrt (amp)));
+            g.fillRect (juce::Rectangle<float> (x - (small ? 0.5f : 1.0f), row.getBottom() - h, small ? 1.0f : 2.0f, h));
+        }
+    }
 }
 
 void LegionSnapshot::read (const LegionView& v)
@@ -405,6 +480,22 @@ void MainView::paintCrowd (juce::Graphics& g, juce::Rectangle<float> a)
     if (legionSnap.live) legionSnap.paintVoices (g, a, false, background());
 }
 
+// Струны: сетка частот и спектр выхода, поверх — три ноты, у каждой свой ряд; справа — имя ноты
+void MainView::paintStringsView (juce::Graphics& g, juce::Rectangle<float> a)
+{
+    paintGrid (g, a, false);
+    paintSpectrum (g, a);
+    psalterSnap.paintStrings (g, a, false, background(), kFMin, kFMax);
+    g.setFont (LnF::mono (LnF::Type::footnote));
+    const float rowH = a.getHeight() / (float) PsalterRecipe::kNotes;
+    for (int k = 0; k < PsalterRecipe::kNotes; ++k)
+    {
+        g.setColour (psalterSnap.live && psalterSnap.weight[(size_t) k] > 0.5f ? Colours::ink : Colours::ink2);
+        const auto txt = psalterSnap.sample[(size_t) k] ? juce::String ("sample") : PsalterRecipe::noteName (psalterSnap.note[(size_t) k]);
+        g.drawText (txt, juce::Rectangle<float> (a.getRight() + 4.0f, a.getY() + rowH * (float) k, 40.0f, rowH), juce::Justification::centredLeft);
+    }
+}
+
 void MainView::paintCurves (juce::Graphics& g, juce::Rectangle<float> a)
 {
     auto yForDb = [&] (float db) { return a.getCentreY() - juce::jlimit (-kDbRange, kDbRange, db) / kDbRange * a.getHeight() * 0.5f; };
@@ -495,7 +586,21 @@ void MainView::paintOverlay (juce::Graphics& g)
     LnF::drawPlate (g, legendArea, 8.0f, plateFill);
     auto r = legendArea.reduced (12.0f, 0.0f);
     g.setFont (LnF::mono (LnF::Type::footnote));
-    if (mode == Curves && content == Content::Crowd)
+    if (mode == Curves && content == Content::Strings)
+    {
+        // легенда струн: «▮ Ringing  ▮ Resting»
+        auto half = r.getWidth() * 0.5f;
+        for (int i = 0; i < 2; ++i)
+        {
+            auto cell = juce::Rectangle<float> (r.getX() + half * (float) i, r.getY(), half, r.getHeight());
+            auto tick = cell.removeFromLeft (22.0f).withSizeKeepingCentre (3.0f, 12.0f);
+            g.setColour (plateFill.interpolatedWith (Colours::carrier, i == 0 ? 1.0f : 0.18f));
+            g.fillRect (tick);
+            g.setColour (Colours::ink);
+            g.drawText (i == 0 ? "Ringing" : "Resting", cell.withTrimmedLeft (2.0f), juce::Justification::centredLeft);
+        }
+    }
+    else if (mode == Curves && content == Content::Crowd)
     {
         // легенда толпы: «● Near  ● Far»
         auto half = r.getWidth() * 0.5f;
@@ -553,7 +658,8 @@ void MainView::paintOverlay (juce::Graphics& g)
         }
         g.setColour (sel ? Colours::ink : Colours::ink2);
         g.setFont (LnF::font (LnF::Type::subheadline, sel));
-        g.drawText (content == Content::Ott ? kOttTabNames[i] : content == Content::Crowd ? kCrowdTabNames[i] : kTabNames[i], cell, juce::Justification::centred);
+        g.drawText (content == Content::Ott ? kOttTabNames[i] : content == Content::Crowd ? kCrowdTabNames[i]
+                    : content == Content::Strings ? kStringsTabNames[i] : kTabNames[i], cell, juce::Justification::centred);
     }
     if (hasKeyboardFocus (false))
         LnF::drawFocusRing (g, tabsArea.expanded (2.0f), tabsArea.getHeight() * 0.5f + 2.0f);
@@ -571,6 +677,7 @@ void MainView::paint (juce::Graphics& g)
         clip.addRoundedRectangle (r.reduced (1.0f), radius - 1.0f);
         g.reduceClipRegion (clip);
         if (mode == Curves && content == Content::Ott) paintStack (g, r.withTrimmedLeft (16.0f).withTrimmedRight (44.0f).withTrimmedTop (52.0f).withTrimmedBottom (60.0f));
+        else if (mode == Curves && content == Content::Strings) paintStringsView (g, r.withTrimmedLeft (16.0f).withTrimmedRight (44.0f).withTrimmedTop (52.0f).withTrimmedBottom (60.0f));
         else if (mode == Curves && content == Content::Crowd) paintCrowd (g, r.withTrimmedLeft (16.0f).withTrimmedRight (44.0f).withTrimmedTop (52.0f).withTrimmedBottom (60.0f));
         else if (mode == Curves) paintCurves (g, r.withTrimmedLeft (16.0f).withTrimmedRight (44.0f).withTrimmedTop (52.0f).withTrimmedBottom (60.0f));
         else paintScope (g, r.reduced (1.0f, 46.0f));

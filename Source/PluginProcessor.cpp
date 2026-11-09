@@ -107,6 +107,11 @@ ChromaProcessor::ChromaProcessor()
         p.guard = get (ParamId::guard);
         p.voices = get (ParamId::voices); p.character = get (ParamId::character); p.pitch = get (ParamId::pitch);
         p.pitchSpread = get (ParamId::pitchSpread); p.loose = get (ParamId::loose); p.space = get (ParamId::space);
+        p.timbre = get (ParamId::timbre); p.decay = get (ParamId::decay); p.tone = get (ParamId::tone);
+        p.psRate = get (ParamId::psRate); p.psDepth = get (ParamId::psDepth); p.width = get (ParamId::width);
+        for (int k = 0; k < PsalterRecipe::kNotes; ++k) p.note[(size_t) k] = get (psalterNoteId (k));
+        psalter[(size_t) s].init (convQueue);
+        psalter[(size_t) s].prepare (sr, blockSize, (uint32_t) (s + 1));
         ott[(size_t) s].prepare (sr);
         legion[(size_t) s].prepare (sr, (uint32_t) (s + 1));
         adv[(size_t) s].resetToRecipe();
@@ -114,6 +119,12 @@ ChromaProcessor::ChromaProcessor()
     }
     ensureScratch (2048);
     presets.loadFactory (0);
+    irThread.startThread (juce::Thread::Priority::low);
+}
+
+ChromaProcessor::~ChromaProcessor()
+{
+    irThread.stopThread (4000);
 }
 
 bool ChromaProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -126,7 +137,9 @@ bool ChromaProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 void ChromaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     sr = sampleRate > 0 ? sampleRate : 48000.0;
+    blockSize = juce::jmax (64, samplesPerBlock);
     ensureScratch (samplesPerBlock);
+    buildPsalterNow();   // ноты Psalter — сразу, чтобы первый блок звучал с ними
     for (int s = 0; s < kSlots; ++s)
     {
         ophan[(size_t) s].prepare (sr, (uint32_t) (s + 1));
@@ -201,6 +214,7 @@ void ChromaProcessor::clearSlot (int slot)
     setSlotType (slot, EffectType::Empty);
     setEffectPresetName (slot, {});
     resetAdvanced (slot);
+    for (int k = 0; k < PsalterRecipe::kNotes; ++k) clearPsalterSample (slot, k);
 }
 
 void ChromaProcessor::copySlot (int from, int to)
@@ -218,6 +232,19 @@ void ChromaProcessor::copySlot (int from, int to)
             for (int f = 0; f < 5; ++f)
                 bandField (b.band[(size_t) s][(size_t) k], f).store (bandField (a.band[(size_t) s][(size_t) k], f).load());
     b.driftRate.store (a.driftRate.load());
+    for (int k = 0; k < PsalterRecipe::kNotes; ++k)
+    {
+        juce::AudioBuffer<float> audio;
+        double rate = 0.0;
+        juce::String name;
+        {
+            const juce::ScopedLock sl (sampleLock);
+            const auto& src = samples[(size_t) from][(size_t) k];
+            if (src.version != 0) { audio = src.audio; rate = src.rate; name = src.name; }
+        }
+        if (rate > 0.0) setPsalterSample (to, k, audio, rate, name);
+        else clearPsalterSample (to, k);
+    }
     setEffectPresetName (to, apvts.state.getProperty (fxKey (from)).toString());
 }
 
@@ -248,6 +275,12 @@ juce::ValueTree ChromaProcessor::captureEffect (int slot)
         writeAdvanced (a, adv[(size_t) slot]);
         t.appendChild (a, nullptr);
     }
+    if (type == EffectType::Psalter)
+    {
+        juce::ValueTree a ("Samples");
+        writePsalterSamples (a, slot);
+        if (a.getNumChildren() > 0) t.appendChild (a, nullptr);
+    }
     return t;
 }
 
@@ -267,6 +300,12 @@ bool ChromaProcessor::applyEffect (int slot, const juce::ValueTree& t)
         adv[(size_t) slot].resetToRecipe();
         const auto a = t.getChildWithName ("Advanced");
         if (a.isValid()) readAdvanced (a, adv[(size_t) slot]);
+    }
+    if (type == EffectType::Psalter)
+    {
+        // свои сэмплы — из пресета; в пресете их нет (фабричный) — синтезированные ноты
+        for (int k = 0; k < PsalterRecipe::kNotes; ++k) clearPsalterSample (slot, k);
+        readPsalterSamples (t.getChildWithName ("Samples"), slot);
     }
     return true;
 }
@@ -335,6 +374,7 @@ void ChromaProcessor::pushRackState()
         juce::ValueTree t ("Slot");
         t.setProperty ("index", slot, nullptr);
         writeAdvanced (t, adv[(size_t) slot]);
+        writePsalterSamples (t, slot);
         rack.appendChild (t, nullptr);
     }
 }
@@ -366,12 +406,14 @@ void ChromaProcessor::pullRackState()
     setChainMode (apvts.state.getProperty ("mode").toString() == "parallel" ? ChainMode::Parallel : ChainMode::Serial);
 
     for (auto& a : adv) a.resetToRecipe();
+    clearAllPsalterSamples();
     const auto rack = apvts.state.getChildWithName ("Rack");
     for (const auto& t : rack)
     {
         const int slot = t.getProperty ("index", -1);
         if (slot < 0 || slot >= kSlots) continue;
         readAdvanced (t, adv[(size_t) slot]);
+        readPsalterSamples (t, slot);
     }
 }
 
@@ -463,6 +505,17 @@ void ChromaProcessor::runSlot (int s, float* L, float* R, int n)
         lp.space = p.space->load() / 100.0f;
         lp.mix = p.mix->load() / 100.0f;
         legion[(size_t) s].process (L, R, n, lp, on ? &legionViews[(size_t) s] : nullptr);
+    }
+    else if (type == (int) EffectType::Psalter)
+    {
+        PsalterParams pp;
+        for (int k = 0; k < PsalterRecipe::kNotes; ++k) pp.note[(size_t) k] = juce::roundToInt (p.note[(size_t) k]->load());
+        pp.tone = p.tone->load() / 100.0f;
+        pp.rate = p.psRate->load();
+        pp.depth = p.psDepth->load() / 100.0f;
+        pp.width = p.width->load() / 100.0f;
+        pp.mix = p.mix->load() / 100.0f;
+        psalter[(size_t) s].process (L, R, n, pp, on ? &psalterViews[(size_t) s] : nullptr);
     }
 }
 
@@ -558,12 +611,14 @@ void ChromaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
             if (type == (int) EffectType::Ophan) ophan[(size_t) s].reset();
             else if (type == (int) EffectType::OttStack) ott[(size_t) s].reset();
             else if (type == (int) EffectType::Legion) legion[(size_t) s].reset();
+            else if (type == (int) EffectType::Psalter) psalter[(size_t) s].reset();
         }
         lastType[(size_t) s] = type;
         lastOn[(size_t) s] = on;
         if (type != (int) EffectType::Ophan || ! on) views[(size_t) s].live.store (false, std::memory_order_relaxed);
         if (type != (int) EffectType::OttStack || ! on) ottViews[(size_t) s].live.store (false, std::memory_order_relaxed);
         if (type != (int) EffectType::Legion || ! on) legionViews[(size_t) s].live.store (false, std::memory_order_relaxed);
+        if (type != (int) EffectType::Psalter || ! on) psalterViews[(size_t) s].live.store (false, std::memory_order_relaxed);
     }
 
     if (modeNow == (int) ChainMode::Parallel) processParallel (L, R, n);
@@ -629,6 +684,206 @@ void ChromaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     const double secs = juce::Time::highResolutionTicksToSeconds (juce::Time::getHighResolutionTicks() - t0);
     const float load = (float) (secs / juce::jmax (1e-6, n / sr));
     cpuLoad.store (cpuLoad.load() * 0.9f + load * 0.1f);
+}
+
+// ---------------------------------------------------------------------------
+// Psalter: ноты (IR) и свои сэмплы
+
+PsalterIrSpec ChromaProcessor::psalterSpec (int slot, int k) const
+{
+    const auto& p = sp[(size_t) slot];
+    PsalterIrSpec spec;
+    spec.sample = sampleVersion[(size_t) slot][(size_t) k].load();
+    if (spec.sample == 0)
+    {
+        spec.timbre = juce::roundToInt (p.timbre->load());
+        spec.note = juce::roundToInt (p.note[(size_t) k]->load());
+    }
+    spec.decayStep = PsalterIrSpec::stepOf (p.decay->load());
+    spec.sr = sr.load();
+    return spec;
+}
+
+juce::AudioBuffer<float> ChromaProcessor::buildPsalterIr (int slot, int k, const PsalterIrSpec& spec)
+{
+    const double decay = PsalterIrSpec::decayOf (spec.decayStep);
+    juce::AudioBuffer<float> ir;
+    if (spec.sample != 0)
+    {
+        juce::AudioBuffer<float> audio;
+        double rate = 0.0;
+        {
+            const juce::ScopedLock sl (sampleLock);
+            const auto& smp = samples[(size_t) slot][(size_t) k];
+            if (smp.version == spec.sample) { audio = smp.audio; rate = smp.rate; }
+        }
+        if (rate <= 0.0 || audio.getNumSamples() == 0) return {};
+        // сэмпл — в частоту проекта здесь, чтобы нормировка и длина считались уже в ней
+        if (std::abs (rate - spec.sr) > 0.5)
+        {
+            const double ratio = rate / spec.sr;
+            const int n = juce::jmax (1, (int) (audio.getNumSamples() / ratio));
+            juce::AudioBuffer<float> rs (audio.getNumChannels(), n);
+            for (int ch = 0; ch < audio.getNumChannels(); ++ch)
+            {
+                juce::LagrangeInterpolator li;
+                li.process (ratio, audio.getReadPointer (ch), rs.getWritePointer (ch), n, audio.getNumSamples(), 0);
+            }
+            audio = std::move (rs);
+        }
+        ir = psalterShapeSample (audio, spec.sr, decay);
+    }
+    else
+        ir = psalterSynth (spec.timbre, PsalterRecipe::noteHz (spec.note), decay, spec.sr, (uint32_t) (slot * 7 + k + 1));
+    psalterNormalise (ir);
+    return ir;
+}
+
+void ChromaProcessor::servicePsalter (bool sync)
+{
+    const juce::ScopedLock sl (psalterLock);
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    for (int s = 0; s < kSlots; ++s)
+    {
+        if (getSlotType (s) != EffectType::Psalter) continue;
+        auto& ps = psalter[(size_t) s];
+        for (int k = 0; k < PsalterRecipe::kNotes; ++k)
+        {
+            const auto spec = psalterSpec (s, k);
+            if (spec == ps.sent[(size_t) k]) continue;
+            if (! sync)
+            {
+                // ждём, пока ручку перестанут крутить (≈ 80 мс): каждая смена IR — переход ≈ 50 мс, и хвост начинается заново
+                if (spec != ps.candidate[(size_t) k]) { ps.candidate[(size_t) k] = spec; ps.candidateSince[(size_t) k] = now; continue; }
+                if (now - ps.candidateSince[(size_t) k] < 80.0) continue;
+            }
+            auto ir = buildPsalterIr (s, k, spec);
+            if (ir.getNumSamples() == 0) { ps.sent[(size_t) k] = spec; continue; }
+            if (sync) { ps.loadNow (k, std::move (ir), spec.sr); ps.sent[(size_t) k] = spec; }
+            else if (ps.offer (k, std::move (ir), spec.sr)) ps.sent[(size_t) k] = spec;
+        }
+    }
+}
+
+void ChromaProcessor::buildPsalterNow()
+{
+    const juce::ScopedLock sl (psalterLock);
+    for (auto& ps : psalter) ps.sent.fill ({});
+    servicePsalter (true);
+    for (int s = 0; s < kSlots; ++s) psalter[(size_t) s].prepare (sr, blockSize, (uint32_t) (s + 1));
+}
+
+bool ChromaProcessor::loadPsalterSample (int slot, int k, const juce::File& f)
+{
+    juce::AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<juce::AudioFormatReader> r (fm.createReaderFor (f));
+    if (r == nullptr || r->sampleRate <= 0 || r->lengthInSamples <= 0) return false;
+    const int ch = (int) juce::jlimit (1u, 2u, r->numChannels);
+    const int n = (int) juce::jmin ((juce::int64) (kMaxSampleSeconds * r->sampleRate), r->lengthInSamples);
+    juce::AudioBuffer<float> audio (ch, n);
+    if (! r->read (&audio, 0, n, 0, true, ch > 1)) return false;
+    return setPsalterSample (slot, k, audio, r->sampleRate, f.getFileNameWithoutExtension());
+}
+
+bool ChromaProcessor::setPsalterSample (int slot, int k, const juce::AudioBuffer<float>& audio, double rate, const juce::String& name)
+{
+    if (slot < 0 || slot >= kSlots || k < 0 || k >= PsalterRecipe::kNotes || audio.getNumSamples() == 0 || rate <= 0.0) return false;
+    PsalterSample smp;
+    smp.name = name.isEmpty() ? juce::String ("Sample") : name;
+    smp.rate = rate;
+    const int n = juce::jmin (audio.getNumSamples(), (int) (kMaxSampleSeconds * rate));
+    const int ch = juce::jlimit (1, 2, audio.getNumChannels());
+    smp.audio.setSize (ch, n);
+    for (int c = 0; c < ch; ++c) smp.audio.copyFrom (c, 0, audio, c, 0, n);
+    // в проект — сжато: FLAC 24 бит, если частота ему подходит, иначе WAV
+    auto encode = [&smp, ch, n] (juce::AudioFormat& fmt) -> bool
+    {
+        smp.encoded.reset();
+        std::unique_ptr<juce::OutputStream> os = std::make_unique<juce::MemoryOutputStream> (smp.encoded, false);
+        auto w = fmt.createWriterFor (os, juce::AudioFormatWriterOptions{}.withSampleRate (smp.rate).withNumChannels (ch).withBitsPerSample (24));
+        if (w == nullptr) return false;
+        const bool ok = w->writeFromAudioSampleBuffer (smp.audio, 0, n);
+        w.reset();
+        return ok && smp.encoded.getSize() > 0;
+    };
+    juce::FlacAudioFormat flac;
+    juce::WavAudioFormat wav;
+    if (encode (flac)) smp.format = "flac";
+    else if (encode (wav)) smp.format = "wav";
+    else return false;
+    {
+        const juce::ScopedLock sl (sampleLock);
+        smp.version = ++sampleCounter;
+        samples[(size_t) slot][(size_t) k] = std::move (smp);
+        sampleVersion[(size_t) slot][(size_t) k].store (samples[(size_t) slot][(size_t) k].version);
+    }
+    return true;
+}
+
+void ChromaProcessor::clearPsalterSample (int slot, int k)
+{
+    if (slot < 0 || slot >= kSlots || k < 0 || k >= PsalterRecipe::kNotes) return;
+    const juce::ScopedLock sl (sampleLock);
+    samples[(size_t) slot][(size_t) k] = {};
+    sampleVersion[(size_t) slot][(size_t) k].store (0);
+}
+
+void ChromaProcessor::clearAllPsalterSamples()
+{
+    for (int s = 0; s < kSlots; ++s)
+        for (int k = 0; k < PsalterRecipe::kNotes; ++k) clearPsalterSample (s, k);
+}
+
+bool ChromaProcessor::hasPsalterSample (int slot, int k) const
+{
+    return slot >= 0 && slot < kSlots && k >= 0 && k < PsalterRecipe::kNotes && sampleVersion[(size_t) slot][(size_t) k].load() != 0;
+}
+
+juce::String ChromaProcessor::getPsalterSampleName (int slot, int k) const
+{
+    if (! hasPsalterSample (slot, k)) return {};
+    const juce::ScopedLock sl (sampleLock);
+    return samples[(size_t) slot][(size_t) k].name;
+}
+
+// сэмплы ↔ узел: «Sample» с номером ноты, именем и сжатым звуком (base64)
+void ChromaProcessor::writePsalterSamples (juce::ValueTree& t, int slot)
+{
+    const juce::ScopedLock sl (sampleLock);
+    for (int k = 0; k < PsalterRecipe::kNotes; ++k)
+    {
+        const auto& smp = samples[(size_t) slot][(size_t) k];
+        if (smp.version == 0) continue;
+        juce::ValueTree c ("Sample");
+        c.setProperty ("note", k, nullptr);
+        c.setProperty ("name", smp.name, nullptr);
+        c.setProperty ("format", smp.format, nullptr);
+        c.setProperty ("data", smp.encoded.toBase64Encoding(), nullptr);
+        t.appendChild (c, nullptr);
+    }
+}
+
+void ChromaProcessor::readPsalterSamples (const juce::ValueTree& t, int slot)
+{
+    if (! t.isValid()) return;
+    for (const auto& c : t)
+    {
+        if (! c.hasType ("Sample")) continue;
+        const int k = c.getProperty ("note", -1);
+        if (k < 0 || k >= PsalterRecipe::kNotes) continue;
+        juce::MemoryBlock mb;
+        if (! mb.fromBase64Encoding (c.getProperty ("data").toString()) || mb.getSize() == 0) continue;
+        std::unique_ptr<juce::AudioFormat> fmt;
+        if (c.getProperty ("format").toString() == "wav") fmt = std::make_unique<juce::WavAudioFormat>();
+        else fmt = std::make_unique<juce::FlacAudioFormat>();
+        std::unique_ptr<juce::AudioFormatReader> r (fmt->createReaderFor (new juce::MemoryInputStream (mb, false), true));
+        if (r == nullptr || r->lengthInSamples <= 0) continue;
+        const int ch = (int) juce::jlimit (1u, 2u, r->numChannels);
+        juce::AudioBuffer<float> audio (ch, (int) r->lengthInSamples);
+        if (! r->read (&audio, 0, audio.getNumSamples(), 0, true, ch > 1)) continue;
+        setPsalterSample (slot, k, audio, r->sampleRate, c.getProperty ("name").toString());
+    }
 }
 
 juce::AudioProcessorEditor* ChromaProcessor::createEditor() { return new ChromaEditor (*this); }

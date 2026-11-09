@@ -198,7 +198,7 @@ ParamKnob::ParamKnob (const juce::String& text)
 
 void ParamKnob::updateValue()
 {
-    value.setText (slider.getTextFromValue (slider.getValue()), juce::dontSendNotification);
+    value.setText (overrideText.isNotEmpty() ? overrideText : slider.getTextFromValue (slider.getValue()), juce::dontSendNotification);
     slider.setDescription (label.getText() + " " + value.getText());
 }
 

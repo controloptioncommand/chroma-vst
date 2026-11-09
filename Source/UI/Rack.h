@@ -19,7 +19,7 @@ public:
     int getSelected() const { return selected; }
     std::function<void (int)> onSelect;
     void update (const std::array<OphanSnapshot, kSlots>& snaps, const std::array<OttSnapshot, kSlots>& ottSnaps,
-                 const std::array<LegionSnapshot, kSlots>& legionSnaps, double sampleRate);
+                 const std::array<LegionSnapshot, kSlots>& legionSnaps, const std::array<PsalterSnapshot, kSlots>& psalterSnaps, double sampleRate);
 
     void paint (juce::Graphics& g) override;
     void resized() override {}
@@ -66,6 +66,7 @@ private:
     std::array<OphanSnapshot, kSlots> snaps;
     std::array<OttSnapshot, kSlots> ottSnaps;
     std::array<LegionSnapshot, kSlots> legionSnaps;
+    std::array<PsalterSnapshot, kSlots> psalterSnaps;
     double sampleRate = 48000.0;
 };
 } // namespace chroma

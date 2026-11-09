@@ -149,12 +149,25 @@ SlotPanel::SlotPanel (ChromaProcessor& p) : proc (p)
         for (int i = 0; i < names.size(); ++i) items.push_back ({ names[i], i });
         characterSwitch.setItems (items);
     }
+    timbreSwitch.setTitle ("Note timbre");
+    timbreSwitch.setDescription ("What the three notes sound like: FM (a plucked FM note, as in the recipe), String, Bell or Glass.");
+    {
+        std::vector<Segmented::Item> items;
+        const auto names = psalterTimbres();
+        for (int i = 0; i < names.size(); ++i) items.push_back ({ names[i], i });
+        timbreSwitch.setItems (items);
+    }
     for (juce::Component* c : std::initializer_list<juce::Component*> { &modeSwitch, &shapeSwitch, &rate, &drift, &depth, &q, &spread, &lowCut, &mix,
                                                                         &onToggle, &guardToggle, &status, &driftRate, &resetButton, &addOphan, &addOtt,
                                                                         &count, &ottDepth, &time, &upward, &downward, &trim,
                                                                         &characterSwitch, &voices, &pitch, &pitchSpread, &loose, &space, &addLegion,
-                                                                        &prevPreset, &presetName, &nextPreset })
+                                                                        &prevPreset, &presetName, &nextPreset,
+                                                                        &notes[0], &notes[1], &notes[2], &timbreSwitch, &decay, &tone, &psRate, &psDepth, &width,
+                                                                        &samplesButton, &addPsalter })
         addAndMakeVisible (c);
+    samplesButton.setTitle ("Own samples for the notes");
+    samplesButton.setDescription ("Load your own one-note samples instead of the built-in notes.");
+    samplesButton.onClick = [this] { if (onShowSamples) onShowSamples (slot); };
     presetName.setTitle ("Effect preset");
     guardToggle.setDescription ("Stops the burst at the start of a note after silence. Off: the stack pops at note starts, like OTT does.");
     presetName.onClick = [this] { showPresetMenu(); };
@@ -174,6 +187,8 @@ SlotPanel::SlotPanel (ChromaProcessor& p) : proc (p)
     addOtt.onClick = [this] { addEffect (EffectType::OttStack); };
     addLegion.setButtonText (juce::String ("Legion") + midDot() + effectTagline (EffectType::Legion));
     addLegion.onClick = [this] { addEffect (EffectType::Legion); };
+    addPsalter.setButtonText (juce::String ("Psalter") + midDot() + effectTagline (EffectType::Psalter));
+    addPsalter.onClick = [this] { addEffect (EffectType::Psalter); };
 
     driftRate.get = [this] { return adv().driftRate.load(); };
     driftRate.set = [this] (float v) { adv().driftRate.store (v); };
@@ -184,6 +199,19 @@ SlotPanel::SlotPanel (ChromaProcessor& p) : proc (p)
 }
 
 OphanAdvanced& SlotPanel::adv() { return proc.advanced (slot); }
+
+// нота из своего сэмпла: вместо имени ноты — «sample»; на кнопке — сколько сэмплов загружено
+void SlotPanel::updateSampleLabels()
+{
+    int n = 0;
+    for (int k = 0; k < 3; ++k)
+    {
+        const bool has = proc.hasPsalterSample (slot, k);
+        notes[(size_t) k].setValueOverride (has ? juce::String ("sample") : juce::String());
+        n += has ? 1 : 0;
+    }
+    samplesButton.setButtonText (n > 0 ? "Own samples (" + juce::String (n) + ")" : juce::String ("Own samples..."));
+}
 
 void SlotPanel::updatePresetName()
 {
@@ -230,7 +258,8 @@ void SlotPanel::savePreset()
 {
     const auto type = proc.getSlotType (slot);
     saveWindow = std::make_unique<juce::AlertWindow> ("Save " + effectNames()[(int) type] + " preset",
-        type == EffectType::Ophan ? "Knobs, Mix and advanced settings of this effect are saved." : "Knobs and Mix of this effect are saved.",
+        type == EffectType::Ophan ? "Knobs, Mix and advanced settings of this effect are saved."
+            : type == EffectType::Psalter ? "Knobs, Mix and own samples of this effect are saved." : "Knobs and Mix of this effect are saved.",
         juce::MessageBoxIconType::NoIcon);
     saveWindow->addTextEditor ("name", proc.getEffectPresetName (slot), "Name");
     saveWindow->addButton ("Save", 1, juce::KeyPress (juce::KeyPress::returnKey));
@@ -319,6 +348,16 @@ void SlotPanel::attachSlot()
     pitchSpread.attach (proc.apvts, slotParam (slot, ParamId::pitchSpread));
     loose.attach (proc.apvts, slotParam (slot, ParamId::loose));
     space.attach (proc.apvts, slotParam (slot, ParamId::space));
+    for (int k = 0; k < 3; ++k) notes[(size_t) k].attach (proc.apvts, slotParam (slot, psalterNoteId (k)));
+    decay.attach (proc.apvts, slotParam (slot, ParamId::decay));
+    tone.attach (proc.apvts, slotParam (slot, ParamId::tone));
+    psRate.attach (proc.apvts, slotParam (slot, ParamId::psRate));
+    psDepth.attach (proc.apvts, slotParam (slot, ParamId::psDepth));
+    width.attach (proc.apvts, slotParam (slot, ParamId::width));
+    timbreAtt = std::make_unique<juce::ParameterAttachment> (*proc.apvts.getParameter (slotParam (slot, ParamId::timbre)),
+        [this] (float v) { timbreSwitch.setSelectedValue (juce::roundToInt (v)); }, nullptr);
+    timbreSwitch.onChange = [this] (int v) { timbreAtt->setValueAsCompleteGesture ((float) v); };
+    timbreAtt->sendInitialUpdate();
     characterAtt = std::make_unique<juce::ParameterAttachment> (*proc.apvts.getParameter (slotParam (slot, ParamId::character)),
         [this] (float v) { characterSwitch.setSelectedValue (juce::roundToInt (v)); }, nullptr);
     characterSwitch.onChange = [this] (int v) { characterAtt->setValueAsCompleteGesture ((float) v); };
@@ -341,7 +380,8 @@ void SlotPanel::updateVisibility()
 {
     advancedMode = modeSwitch.getSelectedValue() == 1;
     const bool ophan = shownType == EffectType::Ophan, ottType = shownType == EffectType::OttStack, legionType = shownType == EffectType::Legion;
-    const bool empty = ! ophan && ! ottType && ! legionType;
+    const bool psalterType = shownType == EffectType::Psalter;
+    const bool empty = ! ophan && ! ottType && ! legionType && ! psalterType;
     modeSwitch.setVisible (ophan);
     for (juce::Component* c : std::initializer_list<juce::Component*> { &prevPreset, &presetName, &nextPreset })
         c->setVisible (! empty);
@@ -353,7 +393,10 @@ void SlotPanel::updateVisibility()
         c->setVisible (ottType);
     for (juce::Component* c : std::initializer_list<juce::Component*> { &characterSwitch, &voices, &pitch, &pitchSpread, &loose, &space })
         c->setVisible (legionType);
-    mix.setVisible ((ophan && ! advancedMode) || ottType || legionType);
+    for (juce::Component* c : std::initializer_list<juce::Component*> { &notes[0], &notes[1], &notes[2], &timbreSwitch, &decay, &tone, &psRate, &psDepth, &width, &samplesButton })
+        c->setVisible (psalterType);
+    updateSampleLabels();
+    mix.setVisible ((ophan && ! advancedMode) || ottType || legionType || psalterType);
     for (auto& c : cells) c->setVisible (ophan && advancedMode);
     driftRate.setVisible (ophan && advancedMode);
     resetButton.setVisible (ophan && advancedMode);
@@ -362,6 +405,7 @@ void SlotPanel::updateVisibility()
     addOphan.setVisible (empty);
     addOtt.setVisible (empty);
     addLegion.setVisible (empty);
+    addPsalter.setVisible (empty);
     layoutBody();
     repaint();
 }
@@ -401,6 +445,7 @@ void SlotPanel::resized()
     auto f = footArea.withTrimmedTop (10);
     onToggle.setBounds (f.removeFromLeft (84).withSizeKeepingCentre (84, 28));
     guardToggle.setBounds (f.withWidth (140).withX (onToggle.getRight() + 16).withSizeKeepingCentre (140, 28));
+    samplesButton.setBounds (juce::Rectangle<int> (onToggle.getRight() + 16, f.getY(), 140, f.getHeight()).withSizeKeepingCentre (140, 28));
     f.removeFromLeft (16);
     driftRate.setBounds (f.removeFromLeft (84 + 90).withTrimmedLeft (84).withSizeKeepingCentre (90, 24));
     f.removeFromLeft (12);
@@ -408,12 +453,12 @@ void SlotPanel::resized()
     status.setBounds (f.removeFromRight (300));
 
     addArea = bodyArea;
-    auto adds = bodyArea.withSizeKeepingCentre (320, 36 * 3 + 10 * 2);
-    addOphan.setBounds (adds.removeFromTop (36));
-    adds.removeFromTop (10);
-    addOtt.setBounds (adds.removeFromTop (36));
-    adds.removeFromTop (10);
-    addLegion.setBounds (adds.removeFromTop (36));
+    auto adds = bodyArea.withSizeKeepingCentre (320, 36 * 4 + 10 * 3);
+    for (auto* b : { &addOphan, &addOtt, &addLegion, &addPsalter })
+    {
+        b->setBounds (adds.removeFromTop (36));
+        adds.removeFromTop (10);
+    }
 }
 
 void SlotPanel::layoutBody()
@@ -441,6 +486,19 @@ void SlotPanel::layoutBody()
         characterSwitch.setBounds (characterArea.withSizeKeepingCentre (284, 30).translated (0, 8));
         row.removeFromLeft (12);
         layoutRow (row, { &pitch, &pitchSpread, &loose, &space, &mix }, 10);
+        return;
+    }
+    if (shownType == EffectType::Psalter)
+    {
+        // три ноты слева; за линией — тембр (сегменты с подписью, как Character у Legion) и ручки
+        auto row = bodyArea.withSizeKeepingCentre (bodyArea.getWidth(), juce::jmin (bodyArea.getHeight(), 100));
+        layoutRow (row.removeFromLeft (252), { &notes[0], &notes[1], &notes[2] }, 6);
+        ottDividerX = row.getX() + 18;
+        row.removeFromLeft (36);
+        timbreArea = row.removeFromLeft (264);
+        timbreSwitch.setBounds (timbreArea.withSizeKeepingCentre (248, 30).translated (0, 8));
+        row.removeFromLeft (12);
+        layoutRow (row, { &decay, &tone, &psRate, &psDepth, &width, &mix }, 6);
         return;
     }
     // Ophan, Macro: форма LFO слева, ручки
@@ -487,6 +545,20 @@ void SlotPanel::paint (juce::Graphics& g)
         g.setColour (Colours::ink);
         g.setFont (LnF::font (LnF::Type::subheadline, true));
         g.drawText ("Character", characterSwitch.getBounds().translated (0, -22).withHeight (16), juce::Justification::centred);
+        return;
+    }
+    if (shownType == EffectType::Psalter)
+    {
+        g.drawText (juce::String ("Psalter") + midDot() + effectTagline (EffectType::Psalter), ta.removeFromTop (20), juce::Justification::centredLeft);
+        g.setColour (Colours::ink2);
+        g.setFont (LnF::font (LnF::Type::callout));
+        g.drawFittedText ("Convolves the sound with three notes: only the harmonics it shares with them ring out, nothing new is added. "
+                          "A random LFO fades each note in and out. Notes set the chord; Timbre sets what the notes are.", ta.withTrimmedTop (4), juce::Justification::topLeft, 2, 1.0f);
+        g.setColour (Colours::outline);
+        g.drawVerticalLine (ottDividerX, (float) bodyArea.getY() + 10.0f, (float) bodyArea.getBottom() - 10.0f);
+        g.setColour (Colours::ink);
+        g.setFont (LnF::font (LnF::Type::subheadline, true));
+        g.drawText ("Timbre", timbreSwitch.getBounds().translated (0, -22).withHeight (16), juce::Justification::centred);
         return;
     }
     if (shownType == EffectType::Ophan)
@@ -543,5 +615,141 @@ void SlotPanel::paint (juce::Graphics& g)
     g.setFont (LnF::font (LnF::Type::callout));
     g.setColour (Colours::ink);
     g.drawText ("Drift rate", driftRate.getBounds().withX (driftRate.getX() - 80).withWidth (74), juce::Justification::centredRight);
+}
+} // namespace chroma
+
+namespace chroma
+{
+// ===========================================================================
+PsalterSamplesPopup::PsalterSamplesPopup (ChromaProcessor& p) : proc (p)
+{
+    setTitle ("Own samples");
+    setWantsKeyboardFocus (true);
+    for (int k = 0; k < 3; ++k)
+    {
+        auto& lb = loadButtons[(size_t) k];
+        lb.setButtonText ("Load...");
+        lb.setTitle ("Load a sample for note " + juce::String (k + 1));
+        lb.onClick = [this, k] { choose (k); };
+        addAndMakeVisible (lb);
+        auto& cb = clearButtons[(size_t) k];
+        cb.setButtonText ("Clear");
+        cb.setTitle ("Back to the built-in note " + juce::String (k + 1));
+        cb.onClick = [this, k] { proc.clearPsalterSample (slot, k); resized(); repaint(); if (onChanged) onChanged(); };
+        addAndMakeVisible (cb);
+    }
+    doneButton.onClick = [this] { close(); };
+    addAndMakeVisible (doneButton);
+}
+
+void PsalterSamplesPopup::open (int s, juce::Rectangle<int> over)
+{
+    slot = s;
+    card = juce::Rectangle<int> (560, 268).withCentre (over.getCentre());
+    setVisible (true);
+    toFront (true);
+    resized();
+    repaint();
+    grabKeyboardFocus();
+}
+
+void PsalterSamplesPopup::close()
+{
+    chooser.reset();
+    setVisible (false);
+    if (onChanged) onChanged();
+}
+
+juce::Rectangle<int> PsalterSamplesPopup::rowArea (int k) const
+{
+    return juce::Rectangle<int> (card.getX() + 20, card.getY() + 76 + k * 46, card.getWidth() - 40, 38);
+}
+
+void PsalterSamplesPopup::resized()
+{
+    for (int k = 0; k < 3; ++k)
+    {
+        auto r = rowArea (k);
+        clearButtons[(size_t) k].setBounds (r.removeFromRight (72).withSizeKeepingCentre (72, 28));
+        r.removeFromRight (8);
+        loadButtons[(size_t) k].setBounds (r.removeFromRight (84).withSizeKeepingCentre (84, 28));
+        clearButtons[(size_t) k].setEnabled (proc.hasPsalterSample (slot, k));
+    }
+    doneButton.setBounds (juce::Rectangle<int> (card.getRight() - 20 - 84, card.getBottom() - 16 - 28, 84, 28));
+}
+
+void PsalterSamplesPopup::paint (juce::Graphics& g)
+{
+    // без затемнения и тени: только карточка с рамкой
+    auto c = card.toFloat();
+    g.setColour (Colours::surface);
+    g.fillRoundedRectangle (c, 12.0f);
+    g.setColour (Colours::ink);   // как у выбранной карточки: без тени карточку отделяет рамка
+    g.drawRoundedRectangle (c.reduced (0.5f), 12.0f, 1.0f);
+
+    auto head = card.reduced (20, 16).removeFromTop (48);
+    g.setColour (Colours::ink);
+    g.setFont (LnF::font (LnF::Type::title3, true));
+    g.drawText ("Own samples" + midDot() + "Slot " + juce::String (slot + 1), head.removeFromTop (20), juce::Justification::centredLeft);
+    g.setColour (Colours::ink2);
+    g.setFont (LnF::font (LnF::Type::callout));
+    g.drawFittedText ("A sample replaces the built-in note. Use one note per file: WAV, AIFF or FLAC, up to 8 s. "
+                      "Decay still shortens it; Timbre and the note knob do not apply.", head.withTrimmedTop (4), juce::Justification::topLeft, 2, 1.0f);
+
+    const int timbre = juce::roundToInt (proc.apvts.getRawParameterValue (slotParam (slot, ParamId::timbre))->load());
+    for (int k = 0; k < 3; ++k)
+    {
+        auto r = rowArea (k);
+        auto label = r.removeFromLeft (76);
+        g.setColour (Colours::ink);
+        g.setFont (LnF::font (LnF::Type::subheadline, true));
+        g.drawText ("Note " + juce::String (k + 1), label.removeFromTop (r.getHeight() / 2), juce::Justification::bottomLeft);
+        const int note = juce::roundToInt (proc.apvts.getRawParameterValue (slotParam (slot, psalterNoteId (k)))->load());
+        g.setColour (Colours::ink2);
+        g.setFont (LnF::mono (LnF::Type::footnote));
+        g.drawText (PsalterRecipe::noteName (note), label, juce::Justification::topLeft);
+
+        auto well = r.withTrimmedRight (72 + 8 + 84 + 10).toFloat().reduced (0.0f, 4.0f);
+        g.setColour (Colours::well);
+        g.fillRoundedRectangle (well, 8.0f);
+        g.setColour (Colours::outline);
+        g.drawRoundedRectangle (well.reduced (0.5f), 8.0f, 1.0f);
+        const bool has = proc.hasPsalterSample (slot, k);
+        g.setColour (has ? Colours::ink : Colours::ink2);
+        g.setFont (LnF::mono (LnF::Type::footnote));
+        g.drawText (has ? proc.getPsalterSampleName (slot, k) : "Built-in" + midDot() + psalterTimbres()[timbre] + " " + PsalterRecipe::noteName (note),
+                    well.reduced (10.0f, 0.0f), juce::Justification::centredLeft, true);
+    }
+}
+
+void PsalterSamplesPopup::mouseDown (const juce::MouseEvent& e)
+{
+    if (! card.contains (e.getPosition())) close();
+}
+
+bool PsalterSamplesPopup::keyPressed (const juce::KeyPress& k)
+{
+    if (k == juce::KeyPress::escapeKey) { close(); return true; }
+    return false;
+}
+
+void PsalterSamplesPopup::choose (int k)
+{
+    if (! lastFolder.isDirectory()) lastFolder = juce::File::getSpecialLocation (juce::File::userMusicDirectory);
+    chooser = std::make_unique<juce::FileChooser> ("Sample for note " + juce::String (k + 1), lastFolder, "*.wav;*.aif;*.aiff;*.flac");
+    juce::Component::SafePointer<PsalterSamplesPopup> safe (this);
+    const int s = slot;
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [safe, s, k] (const juce::FileChooser& fc)
+    {
+        if (safe == nullptr) return;
+        const auto f = fc.getResult();
+        if (f == juce::File()) return;
+        safe->lastFolder = f.getParentDirectory();
+        if (! safe->proc.loadPsalterSample (s, k, f))
+            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, productName(), "Could not read " + f.getFileName() + ".");
+        safe->resized();
+        safe->repaint();
+        if (safe->onChanged) safe->onChanged();
+    });
 }
 } // namespace chroma

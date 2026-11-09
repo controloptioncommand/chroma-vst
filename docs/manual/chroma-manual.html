@@ -84,7 +84,7 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
 <div class="cover">
   <div class="grid"></div>
   <div class="logo">chrōma</div>
-  <div class="sub">Руководство пользователя · <b>v3</b></div>
+  <div class="sub">Руководство пользователя · <b>v4</b></div>
   <div class="shot"><img src="img/main.jpg"></div>
   <div class="foot"><span>effect rack · VST3 · AU · macOS</span><span>made by nnn</span></div>
 </div>
@@ -97,15 +97,16 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <li><span class="mono">03</span>Первый звук за минуту</li>
     <li><span class="mono">04</span>Окно плагина</li>
     <li><span class="mono">05</span>Rack: слоты, порядок и режимы</li>
-    <li><span class="mono">06</span>Главный вид: Curves, Stack, Crowd и Scope</li>
+    <li><span class="mono">06</span>Главный вид: вкладки</li>
     <li><span class="mono">07</span>Ophan: как устроен</li>
     <li><span class="mono">08</span>Ophan: Macro</li>
     <li><span class="mono">09</span>Ophan: Advanced</li>
     <li><span class="mono">10</span>OTT Stack</li>
     <li><span class="mono">11</span>Legion</li>
-    <li><span class="mono">12</span>Пресеты и настройки</li>
-    <li><span class="mono">13</span>Рецепты</li>
-    <li><span class="mono">14</span>Вопросы и ответы</li>
+    <li><span class="mono">12</span>Psalter</li>
+    <li><span class="mono">13</span>Пресеты и настройки</li>
+    <li><span class="mono">14</span>Рецепты</li>
+    <li><span class="mono">15</span>Вопросы и ответы</li>
   </ul>
 
   <h2 style="margin-top: 10mm"><span class="n">01</span>Что такое chrōma</h2>
@@ -116,10 +117,11 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <li><b>Ophan</b>, «Biblically accurate EQ»: EQ Eight в режиме L/R, семь узких колоколов на канал и пять LFO, которые гоняют их по спектру и по стереобазе.</li>
     <li><b>OTT Stack</b>: от 2 до 40 OTT подряд одной ручкой, громкость после стопки — отдельной.</li>
     <li><b>Legion</b>: из одного голоса — хор или толпа до 64 голосов. Церковный хор, футбольная трибуна, монахи, таверна; мужской хор из женского голоса и наоборот.</li>
-    <li>Живые кривые Ophan, карта ступеней OTT и толпа Legion.</li>
+    <li><b>Psalter</b>: звук сворачивается с тремя нотами и звенит теми гармониками, которые есть и в нём, и в аккорде. Ноты по очереди проявляются и уходят. Можно подставить свои сэмплы.</li>
+    <li>Живые кривые Ophan, карта ступеней OTT, толпа Legion и струны Psalter.</li>
     <li><b>Кубик</b>: случайные настройки эффектов, которые стоят в rack, в безопасных пределах.</li>
     <li><b>Пресеты эффектов</b>: у каждого эффекта свои, в заголовке панели слота.</li>
-    <li>26 фабричных пресетов. Весь rack сохраняется в проекте Ableton.</li>
+    <li>31 фабричный пресет. Весь rack сохраняется в проекте Ableton.</li>
   </ul>
   <div class="note"><b>Как читать.</b> Названия ручек и кнопок даны так, как они подписаны в плагине (по-английски). Диапазоны — моноширинным шрифтом.</div>
 </section>
@@ -157,14 +159,14 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <tr><th style="width:34mm">Зона</th><th>Что там</th></tr>
     <tr><td>Тулбар</td><td>Логотип (клик — страница About), пресет <span class="mono">‹ имя ›</span>, кубик, режим Serial / Parallel, мини-спектрограмма, уровни In и Out, настройки.</td></tr>
     <tr><td>Rack</td><td>Слоты цепочки: 4 места, с четырьмя эффектами — 8 (прокруткой). Выбранный слот обведён.</td></tr>
-    <tr><td>Главный вид</td><td>Curves (Ophan), Stack (OTT Stack) или Crowd (Legion) — что делает выбранный слот; Scope — волна на выходе.</td></tr>
+    <tr><td>Главный вид</td><td>Curves (Ophan), Stack (OTT Stack), Crowd (Legion) или Strings (Psalter) — что делает выбранный слот; Scope — волна на выходе.</td></tr>
     <tr><td>Панель</td><td>Ручки выбранного слота, пресет эффекта <span class="mono">‹ имя ›</span> (у Ophan — ещё вкладки Macro и Advanced). Внизу — On и CPU.</td></tr>
   </table>
   <h3>Тулбар</h3>
   <figure><img src="img/toolbar.jpg"></figure>
   <ul>
     <li><b>‹ ›</b> — предыдущий и следующий пресет. Клик по имени — список: фабричные, ваши, Save preset…, Show presets folder.</li>
-    <li><b>Кубик</b> — случайные настройки эффектов в rack, см. раздел 12.</li>
+    <li><b>Кубик</b> — случайные настройки эффектов в rack, см. раздел 13.</li>
     <li><b>Serial / Parallel</b> — режим обработки, см. раздел 05.</li>
     <li><b>Мини-спектрограмма</b> — просто украшение: спектр выхода пиксельной лентой.</li>
     <li><b>In</b> — уровень на входе плагина.</li>
@@ -208,12 +210,11 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
 </section>
 
 <section style="break-before: auto">
-  <h2 style="margin-top: 10mm"><span class="n">06</span>Главный вид: Curves, Stack, Crowd и Scope</h2>
+  <h2 style="margin-top: 10mm"><span class="n">06</span>Главный вид: вкладки</h2>
   <figure style="margin-top:0"><img src="img/view_curves.jpg"><figcaption>Curves: синяя кривая — левый канал, розовая — правый; кружки — полосы 2–8, как в EQ Eight.</figcaption></figure>
   <ul>
     <li><b>Curves</b> — суммарная АЧХ выбранного слота для левого и правого канала, с учётом Low cut и Mix. Шкала <span class="mono">±30 dB</span>, пунктир через 12 dB. Серая заливка — спектр выхода. Слева сверху — номер слота и текущая скорость LFO с учётом Drift.</li>
-    <li><b>Stack</b> — у слота OTT Stack вместо Curves: карта ступеней, см. раздел 10.</li>
-    <li><b>Crowd</b> — у слота Legion вместо Curves: голоса толпы, см. раздел 11.</li>
+    <li><b>Stack</b>, <b>Crowd</b>, <b>Strings</b> — вместо Curves у OTT Stack (карта ступеней), Legion (голоса толпы) и Psalter (три ноты над спектром выхода), см. разделы 10–12.</li>
     <li><b>Scope</b> — волна на выходе, цвет по громкости.</li>
   </ul>
   <p>Вкладки — снизу справа; с клавиатуры: <span class="mono">← →</span>, когда вид в фокусе.</p>
@@ -332,8 +333,49 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <div class="note"><b>Голоса опаздывают нарочно.</b> Люди в толпе не попадают в долю: голоса звучат позже входа — от нескольких миллисекунд у Monks до <span class="mono">0.35 s</span> у Stadium с Loose 200%. Хосту это не сообщается — хор и не должен совпадать с солистом. Нужно точнее — Loose ближе к 0 или характер Monks.</div>
 </section>
 
+<section>
+  <h2><span class="n">12</span>Psalter</h2>
+  <p class="lead">Псалтирь — книга, по которой поют. Psalter сворачивает звук с тремя нотами: звенят только те гармоники, которые есть и в звуке, и в аккорде. Новых тонов эффект не добавляет — он заставляет звучать то, что уже есть во входе. Рецепт — у @nest.acoustics (Serum 2: три Convolve с нотами, Mix каждого ведёт свой случайный LFO).</p>
+  <figure class="mid" style="margin-top:0"><img src="img/panel_psalter.jpg" style="max-width: 92mm"><figcaption>Панель Psalter: слева три ноты, за линией — тембр и ручки.</figcaption></figure>
+  <h3>Как устроен</h3>
+  <p>У каждой ноты своя свёртка: вход проходит через звук этой ноты как через импульс зала. В спектре ноты есть только её гармоники, поэтому из входа остаются частоты, которые совпали с ними, и звенят столько, сколько длится нота. Пила, шум, бас, аккорды, вокал «ловят» гармоники аккорда. Синус мимо нот почти не проходит — ему нечего отдать.</p>
+  <p>Mix каждой ноты ведёт свой плавный случайный LFO (S&amp;H со сглаживанием): ноты по очереди проявляются и уходят. Когда нота «отдыхает», вместо неё звучит сухой сигнал — как у Convolve, когда его Mix уведён вниз. Отсюда «разговор» звука и аккорда. Громкость каждой ноты сама подстраивается под вход (до <span class="mono">+36 dB</span>, за доли секунды), поэтому общая громкость почти не меняется ни от входа, ни от тембра, ни от того, сколько нот сейчас звенит. Пока вход затихает, подстройка замирает, и хвост нот гаснет сам.</p>
+  <table>
+    <tr><th style="width:26mm">Ручка</th><th style="width:30mm">Диапазон</th><th>Что делает</th></tr>
+    <tr><td>Note 1–3</td><td class="r">C1–C8</td><td>Три ноты аккорда. По умолчанию <span class="mono">C5 D5 E5</span> — как в рецепте. Здесь <span class="mono">C4</span> — нота 60, «до» первой октавы (Ableton называет её C3).</td></tr>
+    <tr><td>Timbre</td><td class="r">FM / String / Bell / Glass</td><td>Чем звучат ноты — см. таблицу ниже. По умолчанию FM.</td></tr>
+    <tr><td>Decay</td><td class="r">0.20–6.00 s</td><td>Длина нот: сколько звенят пойманные гармоники. По умолчанию <span class="mono">3.00 s</span>.</td></tr>
+    <tr><td>Tone</td><td class="r">0–100%</td><td>Наклон звенящей части: ниже 50% — темнее (верх до <span class="mono">−10 dB</span>), выше — ярче (до <span class="mono">+10 dB</span>). 50% — ровно.</td></tr>
+    <tr><td>Rate</td><td class="r">0.05–8 Hz</td><td>Скорость случайных LFO нот. По умолчанию <span class="mono">1 Hz</span>, как в рецепте. У каждой ноты своя скорость (±30%) — они не ходят строем.</td></tr>
+    <tr><td>Depth</td><td class="r">0–100%</td><td>Насколько глубоко ноты уходят. 0 — звенят все три всё время, сухого нет. 100% — каждая нота то звенит, то совсем уходит. По умолчанию 100%.</td></tr>
+    <tr><td>Width</td><td class="r">0–100%</td><td>Стерео звенящей части: ноты 1 и 3 расходятся влево и вправо, нота 2 — по центру. 0 — моно. По умолчанию 70%.</td></tr>
+    <tr><td>Mix</td><td class="r">0–100%</td><td>Сухой / обработанный сигнал слота.</td></tr>
+  </table>
+  <table class="keep">
+    <tr><th style="width:26mm">Timbre</th><th>Какие ноты</th></tr>
+    <tr><td>FM</td><td>FM-щипок, как FM Axe из рецепта: яркая атака, потом мягче. Все гармоники — ловит больше всего.</td></tr>
+    <tr><td>String</td><td>Щипок струны (псалтерий): гармоники с «вырезом» от места щипка, верхние гаснут быстрее. Теплее FM.</td></tr>
+    <tr><td>Bell</td><td>Колокол: негармоничный звон (хум, терция, квинта…). Ловит не гармоники аккорда, а свои призвуки — звучит как звонница.</td></tr>
+    <tr><td>Glass</td><td>Стекло: почти чистый тон. Самая избирательная нота — звенит только основной тон и пара октав.</td></tr>
+  </table>
+  <figure class="mid" style="margin: 2mm 0 3mm"><img src="img/view_strings.jpg" style="max-width: 92mm"><figcaption>Вкладка Strings: ряд на ноту (1 сверху), риски — её партиалы по частоте, справа имя ноты. Яркие риски — нота сейчас звенит, бледные — отдыхает. Под ними — спектр выхода: видно, какие гармоники входа совпали с нотами.</figcaption></figure>
+  <h3>Как правильно настраивать</h3>
+  <ol class="steps">
+    <li><b>Сначала ноты.</b> Возьмите аккорд из тональности трека: тонику, терцию, квинту, или тон-тон, как в рецепте (<span class="mono">C5 D5 E5</span>). Ноты вне тональности тоже работают, но звенят только там, где гармоники совпали, — выйдет тише и реже. Октава важна: ноты выше входа ловят его верхние гармоники (воздух, блеск), ноты в регистре входа — основу. Для баса ставьте ноты на 1–2 октавы выше баса (пресет Low Bloom).</li>
+    <li><b>Тембр.</b> FM ловит больше всего и звучит как в видео. String — теплее, Glass — самый чистый и «стеклянный», Bell — звонница, которая звенит своими призвуками.</li>
+    <li><b>Decay — по темпу.</b> <span class="mono">0.5–1.5 s</span> — гармоники вспыхивают и гаснут вместе с нотами, для ритмичного материала. <span class="mono">3–6 s</span> — пэд, который продолжает звенеть после аккорда.</li>
+    <li><b>Rate и Depth — «разговор».</b> Rate <span class="mono">0.2–1 Hz</span> и Depth <span class="mono">70–100%</span> — ноты медленно сменяют друг друга, звук дышит. Rate <span class="mono">3–8 Hz</span> — мерцание. Depth 0 — ровный «аккорд-резонатор» без движения и без сухого сигнала.</li>
+    <li><b>Mix.</b> При Depth 100% сухой сигнал и так слышен, когда ноты отдыхают, — Mix можно оставить <span class="mono">100%</span>. При малом Depth верните сухой звук Mix'ом: <span class="mono">40–70%</span>.</li>
+    <li><b>Tone и Width — в конце.</b> Резкий звон — Tone ниже 50%; тусклый — выше. Для моно-совместимости — Width ближе к 0.</li>
+  </ol>
+  <h3>Свои сэмплы</h3>
+  <figure class="mid" style="margin: 0 0 3mm"><img src="img/panel_samples.jpg" style="max-width: 70mm"><figcaption>Own samples: у каждой ноты — свой сэмпл или встроенная нота.</figcaption></figure>
+  <p>Кнопка <b>Own samples…</b> в подвале панели открывает окно на три ноты. <b>Load…</b> — выбрать файл (WAV, AIFF, FLAC, до <span class="mono">8 s</span>), <b>Clear</b> — вернуть встроенную ноту. Берите одну ноту на файл: щипок, удар, спетый звук, синт. Сэмпл заменяет ноту целиком: ручка ноты и Timbre на него не действуют (под ручкой написано <span class="mono">sample</span>), Decay укорачивает — до половины Decay сэмпл звучит как есть, дальше затухает. Сэмплы сохраняются внутри проекта и в пресете эффекта, Duplicate их копирует, фабричные пресеты их сбрасывают.</p>
+  <div class="note"><b>Смена ноты — с переходом.</b> Когда меняются нота, Timbre, Decay или сэмпл, нота строится заново (за 0.1–0.3 s) и подменяется плавно, за <span class="mono">50 ms</span>, — её хвост начинается заново. Tone, Rate, Depth, Width и Mix меняются мгновенно и без переходов. Задержки нет: свёртка работает без латентности.</div>
+</section>
+
 <section style="break-before: auto">
-  <h2 style="margin-top: 10mm"><span class="n">12</span>Пресеты и настройки</h2>
+  <h2 style="margin-top: 10mm"><span class="n">13</span>Пресеты и настройки</h2>
   <table>
     <tr><th style="width:44mm">Пресет</th><th>Что это</th></tr>
     <tr><td>Biblically Accurate</td><td>Рецепт из видео один в один.</td></tr>
@@ -362,13 +404,18 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <tr><td>Pandemonium</td><td>64 голоса вразнобой, высоты от октавы вниз до октавы вверх.</td></tr>
     <tr><td>Riot</td><td>Трибуна → OTT ×6: толпа, сжатая в стену.</td></tr>
     <tr><td>CARNIVAL</td><td>По мотивам болельщиков из трека Kanye West — CARNIVAL: 64 мужских голоса в ритм на стадионе → OTT ×4 вполсилы.</td></tr>
+    <tr><td>Harmonic Waves</td><td>Psalter по рецепту: <span class="mono">C5 D5 E5</span> на FM, LFO <span class="mono">1 Hz</span> на всю глубину.</td></tr>
+    <tr><td>Psaltery</td><td>Соль мажор (<span class="mono">G4 B4 D5</span>) на струнах, LFO медленнее.</td></tr>
+    <tr><td>Low Bloom</td><td>Для баса: <span class="mono">C3 G3 D4</span> на струнах, длинные и тёмные ноты.</td></tr>
+    <tr><td>Minor Drift</td><td>Ля минор (<span class="mono">A4 C5 E5</span>) на стекле, медленный дрейф, широкое стерео.</td></tr>
+    <tr><td>Bell Tower</td><td>Квинты <span class="mono">D4 A4 E5</span> на колоколах, звон <span class="mono">6 s</span>.</td></tr>
   </table>
   <h3>Пресеты эффекта</h3>
   <p>У каждого эффекта — свои пресеты, отдельно от пресетов rack. Они в заголовке панели слота: <span class="mono">‹ имя ›</span>. Стрелки листают, клик по имени — список, <b>Save effect preset…</b> и <b>Show effect presets folder</b>.</p>
   <ul>
-    <li>В пресет эффекта входят его ручки и Mix, у Ophan — ещё Advanced, у Legion — характер. On не входит.</li>
-    <li>Фабричные — из пресетов rack выше: 13 для Ophan (Advanced — рецепт), 7 для OTT Stack, 10 для Legion.</li>
-    <li>Свои лежат в <code>~/Music/chroma/Presets/Effects/Ophan</code>, <code>…/OTT Stack</code> и <code>…/Legion</code> (<code>*.chromafx</code>). Пресет одного эффекта в другой не загрузить.</li>
+    <li>В пресет эффекта входят его ручки и Mix, у Ophan — ещё Advanced, у Legion — характер, у Psalter — ноты, тембр и свои сэмплы. On не входит.</li>
+    <li>Фабричные — из пресетов rack выше: 13 для Ophan (Advanced — рецепт), 7 для OTT Stack, 10 для Legion, 5 для Psalter (без своих сэмплов).</li>
+    <li>Свои лежат в <code>~/Music/chroma/Presets/Effects/Ophan</code>, <code>…/OTT Stack</code>, <code>…/Legion</code> и <code>…/Psalter</code> (<code>*.chromafx</code>). Пресет одного эффекта в другой не загрузить.</li>
     <li>Новый эффект в слоте — «Init». Duplicate переносит имя, пресет rack называет первый слот каждого эффекта своим именем.</li>
   </ul>
   <p>Пресет хранит весь rack: типы и ручки слотов, порядок, режим Serial / Parallel и Advanced. Громкость Out пресет не меняет. Свои пресеты — меню пресета → <b>Save preset…</b>, лежат в <code>~/Music/chroma/Presets/*.chroma</code>.</p>
@@ -378,20 +425,21 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
     <li><b>Ophan</b> — Rate <span class="mono">0.08–6 Hz</span>, Drift <span class="mono">0–70%</span>, Depth <span class="mono">60–200%</span>, Q <span class="mono">50–250%</span>, Spread, Low cut <span class="mono">40–600 Hz</span>, Shape.</li>
     <li><b>OTT Stack</b> — Count (чаще мало OTT, изредка башня до <span class="mono">×40</span>), Depth, Time, Upward, Downward.</li>
     <li><b>Legion</b> — Voices (чаще немного голосов), Character, Pitch (чаще без сдвига, иногда до <span class="mono">±12 st</span>), Spread <span class="mono">±0.05–4 st</span>, Loose <span class="mono">30–160%</span>, Space <span class="mono">10–80%</span>.</li>
+    <li><b>Psalter</b> — ноты (аккорд от случайной тоники <span class="mono">C3–G5</span>: мажор, минор, квинты, тон-тон, как в рецепте…), Timbre, Decay <span class="mono">1–6 s</span>, Tone <span class="mono">25–75%</span>, Rate <span class="mono">0.1–3 Hz</span>, Depth <span class="mono">50–100%</span>, Width <span class="mono">30–100%</span>.</li>
     <li><b>Slot order</b> — порядок слотов (только в Serial).</li>
     <li><b>Slot mix</b> — Mix слотов, <span class="mono">50–100%</span>.</li>
     <li><b>Ophan advanced</b> — рецепт полос: диапазоны частоты, усиление <span class="mono">±3…15 dB</span>, Q <span class="mono">4–18</span>, Drift rate. Вернуть рецепт — Advanced → Reset to recipe.</li>
   </ul>
-  <p>Что кубику можно менять — настройки → <b>Randomizer</b>, галочки по пунктам выше. Выбор хранится в настройках плагина и действует во всех проектах. Кубик никогда не трогает тип эффекта, пустые слоты, On, режим Serial / Parallel, громкость Out и Output у OTT Stack. Автоматизация хоста видит изменения как обычные движения ручек.</p>
+  <p>Что кубику можно менять — настройки → <b>Randomizer</b>, галочки по пунктам выше. Выбор хранится в настройках плагина и действует во всех проектах. Кубик никогда не трогает тип эффекта, пустые слоты, On, режим Serial / Parallel, громкость Out, Output у OTT Stack и свои сэмплы Psalter. Автоматизация хоста видит изменения как обычные движения ручек.</p>
   <h3>Credits</h3>
-  <p>Настройки → <b>Credits</b> — отдельная страница: кто вдохновил эффекты. @rosco.moon — Ophan, Ableton — OTT Stack. Назад — маленький логотип или Escape.</p>
+  <p>Настройки → <b>Credits</b> — отдельная страница: кто вдохновил эффекты. @rosco.moon — Ophan, Ableton — OTT Stack, @nest.acoustics — Psalter. Назад — маленький логотип или Escape.</p>
   <h3>Темы</h3>
   <p><b>Oxygen</b> — светлая, <b>Rubber</b> — тёмная или по системе: настройки → Appearance.</p>
   <figure class="small" style="margin-top:2mm"><img src="img/main_oxygen.jpg" style="max-width: 78mm"><figcaption>Светлая тема Oxygen.</figcaption></figure>
 </section>
 
 <section>
-  <h2><span class="n">13</span>Рецепты</h2>
+  <h2><span class="n">14</span>Рецепты</h2>
   <h3>Пэд, который дышит</h3>
   <p>Biblically Accurate, Rate <span class="mono">0.3–0.5 Hz</span>, Depth <span class="mono">120%</span>, Mix <span class="mono">60–80%</span>. Колокола медленно проплывают по гармоникам аккорда.</p>
   <h3>Вокал «из телефона ангела»</h3>
@@ -408,12 +456,16 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <p>Pitch <span class="mono">−12</span> (Basso Profondo) или <span class="mono">−7</span> для баритонов; вверх — <span class="mono">+7…+12</span> (Sirens). Spread держите маленьким (<span class="mono">±0.2–0.5</span>), чтобы хор пел в один тон.</p>
   <h3>Стадион</h3>
   <p>Запишите кричалку одним голосом, Legion → Stadium, Voices <span class="mono">48–64</span>, Spread <span class="mono">±2–3</span>, Space <span class="mono">50–70%</span>. Плотнее и злее — OTT Stack после (пресеты Riot и CARNIVAL).</p>
+  <h3>Пила и шум, которые поют</h3>
+  <p>Как в видео: простая пила или розовый шум (или пэд с шумом), Psalter — Harmonic Waves. Чем больше в звуке гармоник, тем больше нотам есть что «поймать». Сыграйте басовые ноты: гармоники баса, совпавшие с аккордом, зазвенят сверху.</p>
+  <h3>Аккорд-резонатор на барабанах</h3>
+  <p>Psalter на шине барабанов: ноты — тоника и квинта трека, Glass или String, Decay <span class="mono">0.6–1.2 s</span>, Depth <span class="mono">0–30%</span>, Mix <span class="mono">25–40%</span>. Удары начинают звенеть в тональности.</p>
   <h3>Свой рецепт</h3>
   <p>Во вкладке Advanced сузьте все Freq from / to к одной октаве (например, <span class="mono">800 Hz – 1.6 kHz</span>) — колокола будут «роиться» в одной зоне, как формантный фильтр.</p>
 </section>
 
 <section>
-  <h2><span class="n">14</span>Вопросы и ответы</h2>
+  <h2><span class="n">15</span>Вопросы и ответы</h2>
   <h3>Стало громче или тише</h3>
   <p>При Depth 200% узкие колокола поднимают отдельные гармоники до <span class="mono">+18 dB</span> (полоса 8 — до <span class="mono">+30 dB</span>), а срез низа убирает басы. Подровняйте Out или уменьшите Depth. Выше 0 dBFS выход не поднимется.</p>
   <h3>Свистит</h3>
@@ -421,15 +473,17 @@ td.r { font-family: "Medeo Mono"; font-size: 8.6pt; color: var(--ink2); white-sp
   <h3>В моно эффект пропадает</h3>
   <p>Каналы обрабатываются по-разному. Сведите Spread ближе к 0.</p>
   <h3>Есть ли задержка</h3>
-  <p>У Ophan и OTT Stack — нет: фильтры работают без задержки, хосту ничего компенсировать не нужно. У Legion голоса опаздывают нарочно — так звучит толпа (см. раздел 11).</p>
+  <p>У Ophan и OTT Stack — нет: фильтры работают без задержки, хосту ничего компенсировать не нужно. У Legion голоса опаздывают нарочно — так звучит толпа (см. раздел 11). Psalter работает без задержки.</p>
+  <h3>Psalter почти не звенит</h3>
+  <p>Гармоники входа не совпадают с нотами. Поставьте ноты из тональности трека, возьмите FM или String вместо Glass, поднимите Decay. На чистом синусе мимо нот эффекту нечего ловить.</p>
   <h3>Legion не меняет высоту</h3>
   <p>Значит, на входе нет одного тона: аккорд, барабаны, шум или голос тише <span class="mono">−70 dBFS</span>. В главном виде тогда написано <span class="mono">no pitch</span>. Legion рассчитан на один голос — поставьте его на дорожку с соло-вокалом.</p>
   <h3>OTT Stack грузит процессор</h3>
-  <p>40 OTT подряд — около 12% одного ядра (каждый OTT — 7 фильтров на канал). Нужна лёгкость — уменьшите Count. Legion на 64 голоса — около 6%, на 16 — около 2%.</p>
+  <p>40 OTT подряд — около 12% одного ядра (каждый OTT — 7 фильтров на канал). Нужна лёгкость — уменьшите Count. Legion на 64 голоса — около 6%, на 16 — около 2%. Psalter — около 7% при Decay 3 s и 9% при 6 s: чем длиннее Decay, тем тяжелее свёртка.</p>
   <h3>В Parallel эффект слабее</h3>
   <p>Выходы слотов усредняются: при двух слотах каждый звучит наполовину. Нужен один эффект сильнее — выключите остальные или верните Serial.</p>
   <h3>Где другие эффекты</h3>
-  <p>chrōma задумана как rack, эффекты добавляются в новых версиях: v1 — Ophan, v2 — OTT Stack, v3 — Legion. Слоты и пресеты из старых версий остаются рабочими.</p>
+  <p>chrōma задумана как rack, эффекты добавляются в новых версиях: v1 — Ophan, v2 — OTT Stack, v3 — Legion, v4 — Psalter. Слоты и пресеты из старых версий остаются рабочими.</p>
 </section>
 
 </body>

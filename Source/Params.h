@@ -8,12 +8,13 @@ namespace chroma
 inline constexpr int kSlots = 8;
 inline constexpr int kBaseSlots = 4;   // столько мест видно в rack, пока эффектов меньше четырёх
 
-enum class EffectType { Empty = 0, Ophan = 1, OttStack = 2, Legion = 3 };   // новые — только в конец
-inline constexpr int kNumEffectTypes = 4;   // вместе с Empty
+enum class EffectType { Empty = 0, Ophan = 1, OttStack = 2, Legion = 3, Psalter = 4 };   // новые — только в конец
+inline constexpr int kNumEffectTypes = 5;   // вместе с Empty
 enum class ChainMode { Serial = 0, Parallel = 1 };
 juce::StringArray effectNames();          // для параметра типа слота
 juce::String effectTagline (EffectType);  // подзаголовок эффекта
 juce::StringArray legionCharacters();     // характеры толпы Legion: Choir, Stadium, Monks, Tavern
+juce::StringArray psalterTimbres();       // тембр нот Psalter: FM, String, Bell, Glass
 
 namespace ParamId
 {
@@ -45,7 +46,20 @@ namespace ParamId
     inline constexpr const char* pitchSpread = "pspread";
     inline constexpr const char* loose = "loose";
     inline constexpr const char* space = "space";
+    // Psalter (v4)
+    inline constexpr const char* note1 = "pnote1";
+    inline constexpr const char* note2 = "pnote2";
+    inline constexpr const char* note3 = "pnote3";
+    inline constexpr const char* timbre = "ptimbre";
+    inline constexpr const char* decay = "pdecay";
+    inline constexpr const char* tone = "ptone";
+    inline constexpr const char* psRate = "prate";
+    inline constexpr const char* psDepth = "pdepth";
+    inline constexpr const char* width = "pwidth";
 }
+
+// ноты Psalter по номеру (0…2)
+const char* psalterNoteId (int k);
 
 // все параметры слота, кроме типа эффекта (очистка и копия слота)
 const std::vector<const char*>& slotParamIds();

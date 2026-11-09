@@ -3,6 +3,7 @@
 #include "../DSP/Ophan.h"
 #include "../DSP/OttStack.h"
 #include "../DSP/Legion.h"
+#include "../DSP/Psalter.h"
 #include <juce_dsp/juce_dsp.h>
 #include <complex>
 #include <deque>
@@ -64,6 +65,21 @@ struct LegionSnapshot
     void paintVoices (juce::Graphics& g, juce::Rectangle<float> area, bool small, juce::Colour background) const;
 };
 
+// Снимок Psalter: три ноты (номер MIDI или сэмпл) и текущий Mix каждой (LFO)
+struct PsalterSnapshot
+{
+    bool live = false;
+    int timbre = 0;
+    std::array<int, PsalterRecipe::kNotes> note { 72, 74, 76 };
+    std::array<bool, PsalterRecipe::kNotes> sample {};
+    std::array<float, PsalterRecipe::kNotes> weight {};
+    void read (const PsalterView& v);
+    // партиалы ноты для рисования: частота относительно ноты и громкость (как в синтезе тембра)
+    static void partials (int timbre, std::vector<std::pair<float, float>>& out);
+    // нарисовать «струны»: ряд на ноту, риски на партиалах по частоте (лог 20 Гц – 20 кГц), яркость — Mix ноты
+    void paintStrings (juce::Graphics& g, juce::Rectangle<float> area, bool small, juce::Colour background, float fMin, float fMax) const;
+};
+
 // Главный вид: кривые EQ левого и правого канала поверх спектра выхода (Curves) или осциллограмма (Scope)
 class MainView : public juce::Component
 {
@@ -81,6 +97,8 @@ public:
     void setOttSlot (const juce::String& caption, const OttSnapshot* snap);
     // слот Legion: вместо кривых — толпа (вкладка Crowd)
     void setLegionSlot (const juce::String& caption, const LegionSnapshot* snap);
+    // слот Psalter: вместо кривых — три ноты над спектром выхода (вкладка Strings)
+    void setPsalterSlot (const juce::String& caption, const PsalterSnapshot* snap);
 
     void paint (juce::Graphics& g) override;
     void resized() override;
@@ -97,6 +115,7 @@ private:
     void paintSpectrum (juce::Graphics& g, juce::Rectangle<float> area);
     void paintStack (juce::Graphics& g, juce::Rectangle<float> area);
     void paintCrowd (juce::Graphics& g, juce::Rectangle<float> area);
+    void paintStringsView (juce::Graphics& g, juce::Rectangle<float> area);
     void paintScope (juce::Graphics& g, juce::Rectangle<float> area);
     void paintOverlay (juce::Graphics& g);
     juce::Colour background() const;
@@ -108,7 +127,8 @@ private:
     OphanSnapshot snap;
     OttSnapshot ottSnap;
     LegionSnapshot legionSnap;
-    enum class Content { Eq, Ott, Crowd };   // что показывает первая вкладка
+    PsalterSnapshot psalterSnap;
+    enum class Content { Eq, Ott, Crowd, Strings };   // что показывает первая вкладка
     Content content = Content::Eq;
     juce::Rectangle<float> tabsArea, legendArea;
 

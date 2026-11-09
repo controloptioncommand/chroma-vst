@@ -53,6 +53,21 @@ const std::vector<FactoryPreset>& factoryPresets()
         { "CARNIVAL", { { P (0, type), 3 }, { P (0, character), 1 }, { P (0, voices), 64 }, { P (0, pitch), -2 }, { P (0, pitchSpread), 1 },
                         { P (0, loose), 70 }, { P (0, space), 55 },
                         { P (1, type), 2 }, { P (1, count), 4 }, { P (1, ottDepth), 60 }, { P (1, time), 70 }, { P (1, trim), -6 } } },
+        // Psalter (v4): вход звенит гармониками трёх нот (Timbre: 0 FM, 1 String, 2 Bell, 3 Glass; ноты — MIDI, C4 = 60)
+        // рецепт NEST Acoustics из видео: C5 D5 E5 на FM-ноте, LFO нот 1 Гц на всю глубину
+        { "Harmonic Waves", { { P (0, type), 4 } } },
+        // псалтерий: соль мажор на струнах, LFO медленнее
+        { "Psaltery", { { P (0, type), 4 }, { P (0, note1), 67 }, { P (0, note2), 71 }, { P (0, note3), 74 }, { P (0, timbre), 1 },
+                        { P (0, decay), 4.0f }, { P (0, tone), 60 }, { P (0, psRate), 0.5f }, { P (0, psDepth), 70 }, { P (0, width), 80 } } },
+        // для баса: низкие ноты (C3 G3 D4), длинные и тёмные, сухой бас слышен
+        { "Low Bloom", { { P (0, type), 4 }, { P (0, note1), 48 }, { P (0, note2), 55 }, { P (0, note3), 62 }, { P (0, timbre), 1 },
+                         { P (0, decay), 5.0f }, { P (0, tone), 35 }, { P (0, psRate), 0.3f }, { P (0, psDepth), 60 }, { P (0, width), 60 }, { P (0, mix), 90 } } },
+        // ля минор на стекле: самая избирательная нота, медленный дрейф, широкое стерео
+        { "Minor Drift", { { P (0, type), 4 }, { P (0, note1), 69 }, { P (0, note2), 72 }, { P (0, note3), 76 }, { P (0, timbre), 3 },
+                           { P (0, decay), 5.0f }, { P (0, tone), 45 }, { P (0, psRate), 0.25f }, { P (0, psDepth), 90 }, { P (0, width), 100 } } },
+        // колокольня: квинты D4 A4 E5 на колоколах, длинный звон
+        { "Bell Tower", { { P (0, type), 4 }, { P (0, note1), 62 }, { P (0, note2), 69 }, { P (0, note3), 76 }, { P (0, timbre), 2 },
+                          { P (0, decay), 6.0f }, { P (0, tone), 55 }, { P (0, psRate), 0.7f }, { P (0, psDepth), 80 }, { P (0, width), 90 }, { P (0, mix), 80 } } },
     };
     return list;
 }

@@ -1,8 +1,9 @@
 #include "Params.h"
+#include "DSP/Psalter.h"
 
 namespace chroma
 {
-juce::StringArray effectNames() { return { "Empty", "Ophan", "OTT Stack", "Legion" }; }
+juce::StringArray effectNames() { return { "Empty", "Ophan", "OTT Stack", "Legion", "Psalter" }; }
 
 juce::String effectTagline (EffectType t)
 {
@@ -11,12 +12,21 @@ juce::String effectTagline (EffectType t)
         case EffectType::Ophan: return "Biblically accurate EQ";
         case EffectType::OttStack: return "OTT in series";
         case EffectType::Legion: return "One voice, a crowd";
+        case EffectType::Psalter: return "Three notes ring along";
         case EffectType::Empty: break;
     }
     return "Empty slot";
 }
 
 juce::StringArray legionCharacters() { return { "Choir", "Stadium", "Monks", "Tavern" }; }
+
+juce::StringArray psalterTimbres() { return { "FM", "String", "Bell", "Glass" }; }
+
+const char* psalterNoteId (int k)
+{
+    static const char* ids[3] = { ParamId::note1, ParamId::note2, ParamId::note3 };
+    return ids[juce::jlimit (0, 2, k)];
+}
 
 juce::String slotParam (int slot, const char* id) { return "s" + juce::String (slot + 1) + "_" + id; }
 
@@ -25,7 +35,8 @@ const std::vector<const char*>& slotParamIds()
     using namespace ParamId;
     static const std::vector<const char*> ids { on, mix, rate, drift, depth, q, spread, lowCut, shape,
                                                 count, ottDepth, time, upward, downward, trim, guard,
-                                                voices, character, pitch, pitchSpread, loose, space };
+                                                voices, character, pitch, pitchSpread, loose, space,
+                                                note1, note2, note3, timbre, decay, tone, psRate, psDepth, width };
     return ids;
 }
 
@@ -47,6 +58,25 @@ juce::String hzText (float v)
     if (v >= 100.0f) return juce::String (juce::roundToInt (v)) + " Hz";
     if (v >= 10.0f) return juce::String (v, 1) + " Hz";
     return juce::String (v, 2) + " Hz";
+}
+
+// «C5», «f#3», «60» → номер MIDI (C4 = 60)
+int noteFromText (const juce::String& text)
+{
+    const auto t = text.trim().toUpperCase();
+    if (t.containsOnly ("0123456789")) return juce::jlimit (24, 108, t.getIntValue());
+    static const char* names[7] = { "C", "D", "E", "F", "G", "A", "B" };
+    static const int semis[7] = { 0, 2, 4, 5, 7, 9, 11 };
+    for (int i = 0; i < 7; ++i)
+        if (t.startsWith (names[i]))
+        {
+            auto rest = t.substring (1);
+            int n = semis[i];
+            if (rest.startsWith ("#")) { ++n; rest = rest.substring (1); }
+            else if (rest.startsWith ("B")) { --n; rest = rest.substring (1); }
+            return juce::jlimit (24, 108, (rest.getIntValue() + 1) * 12 + n);
+        }
+    return 72;
 }
 
 using Float = juce::AudioParameterFloat;
@@ -130,6 +160,24 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         }
         group->addChild (pct (slotParam (s, ParamId::loose), pre + "Legion loose", 0.0f, 200.0f, 100.0f));
         group->addChild (pct (slotParam (s, ParamId::space), pre + "Legion space", 0.0f, 100.0f, 40.0f));
+        // Psalter: три ноты (по умолчанию C5 D5 E5 — как в рецепте), тембр, длина нот, наклон, LFO нот, стерео
+        for (int k = 0; k < 3; ++k)
+            group->addChild (std::make_unique<juce::AudioParameterInt> (juce::ParameterID { slotParam (s, psalterNoteId (k)), 1 },
+                pre + "Psalter note " + juce::String (k + 1), 24, 108, 72 + 2 * k,
+                juce::AudioParameterIntAttributes().withStringFromValueFunction ([] (int v, int) { return PsalterRecipe::noteName (v); })
+                                                   .withValueFromStringFunction ([] (const juce::String& t) { return noteFromText (t); })));
+        group->addChild (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { slotParam (s, ParamId::timbre), 1 }, pre + "Psalter timbre",
+                                                                       psalterTimbres(), 0));
+        {
+            juce::NormalisableRange<float> r ((float) PsalterRecipe::kMinDecay, (float) PsalterRecipe::kMaxDecay, 0.01f);
+            r.setSkewForCentre (1.5f);
+            group->addChild (std::make_unique<Float> (juce::ParameterID { slotParam (s, ParamId::decay), 1 }, pre + "Psalter decay", r, 3.0f,
+                Attr().withLabel ("s").withStringFromValueFunction ([] (float v, int) { return juce::String (v, v < 10.0f ? 2 : 1) + " s"; })));
+        }
+        group->addChild (pct (slotParam (s, ParamId::tone), pre + "Psalter tone", 0.0f, 100.0f, 50.0f));
+        group->addChild (hz (slotParam (s, ParamId::psRate), pre + "Psalter rate", 0.05f, 8.0f, 1.0f, 1.0f));
+        group->addChild (pct (slotParam (s, ParamId::psDepth), pre + "Psalter depth", 0.0f, 100.0f, 100.0f));
+        group->addChild (pct (slotParam (s, ParamId::width), pre + "Psalter width", 0.0f, 100.0f, 70.0f));
         l.add (std::move (group));
     }
     return l;

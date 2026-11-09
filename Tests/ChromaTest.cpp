@@ -149,6 +149,78 @@ double centroidOf (const juce::AudioBuffer<float>& b, double sr, int from)
     return num / juce::jmax (1e-20, den);
 }
 
+// пила (с ограниченной полосой — сумма гармоник) на частоте hz, стерео одинаковое
+juce::AudioBuffer<float> sawSignal (double sr, double seconds, double hz, float level = 0.3f)
+{
+    const int n = (int) (seconds * sr);
+    juce::AudioBuffer<float> b (2, n);
+    b.clear();
+    const int H = juce::jmax (1, (int) (0.45 * sr / hz));
+    for (int h = 1; h <= H; ++h)
+    {
+        const double w = 2.0 * 3.141592653589793 * hz * h / sr;
+        const float a = level * 0.55f / (float) h;
+        for (int i = 0; i < n; ++i) b.addSample (0, i, a * (float) std::sin (w * i));
+    }
+    b.copyFrom (1, 0, b, 0, 0, n);
+    return b;
+}
+
+juce::AudioBuffer<float> noiseSignal (double sr, double seconds, float level = 0.2f, int seed = 21)
+{
+    const int n = (int) (seconds * sr);
+    juce::AudioBuffer<float> b (2, n);
+    juce::Random rng (seed);
+    for (int c = 0; c < 2; ++c) for (int i = 0; i < n; ++i) b.setSample (c, i, (rng.nextFloat() * 2.0f - 1.0f) * level);
+    return b;
+}
+
+// спектр мощности куска канала ch (окно Ханна), бины по sr / N
+std::vector<double> powerSpectrum (const juce::AudioBuffer<float>& b, int ch, int from, int order = 15)
+{
+    const int N = 1 << order;
+    juce::dsp::FFT fft (order);
+    std::vector<float> w ((size_t) N * 2, 0.0f);
+    for (int j = 0; j < N && from + j < b.getNumSamples(); ++j)
+        w[(size_t) j] = b.getSample (ch, from + j) * (0.5f - 0.5f * std::cos (6.2831853f * (float) j / (float) N));
+    fft.performFrequencyOnlyForwardTransform (w.data());
+    std::vector<double> p ((size_t) N / 2);
+    for (int k = 0; k < N / 2; ++k) p[(size_t) k] = (double) w[(size_t) k] * w[(size_t) k];
+    return p;
+}
+
+// доля мощности (до 6 кГц) в полосах ±tol Гц вокруг гармоник hz
+double harmonicShare (const std::vector<double>& p, double sr, double hz, double tol)
+{
+    const double bin = sr / (2.0 * (double) p.size());
+    double in = 0, all = 0;
+    for (size_t k = 1; k < p.size(); ++k)
+    {
+        const double f = k * bin;
+        if (f > 6000.0) break;
+        all += p[k];
+        const double h = std::round (f / hz);
+        if (h >= 1.0 && std::abs (f - h * hz) <= tol) in += p[k];
+    }
+    return in / juce::jmax (1e-30, all);
+}
+
+double peakHz (const std::vector<double>& p, double sr)
+{
+    size_t best = 1;
+    for (size_t k = 1; k < p.size(); ++k) if (p[k] > p[best]) best = k;
+    return best * sr / (2.0 * (double) p.size());
+}
+
+float rmsDb (const juce::AudioBuffer<float>& b, int from, int to)
+{
+    double sum = 0;
+    int cnt = 0;
+    for (int c = 0; c < b.getNumChannels(); ++c)
+        for (int i = from; i < juce::jmin (to, b.getNumSamples()); ++i) { sum += (double) b.getSample (c, i) * b.getSample (c, i); ++cnt; }
+    return (float) (10.0 * std::log10 (std::max (1e-20, sum / std::max (1, cnt))));
+}
+
 juce::AudioBuffer<float> run (ChromaProcessor& p, const juce::AudioBuffer<float>& in, ChromaEditor* ed = nullptr)
 {
     juce::AudioBuffer<float> out (in);
@@ -677,6 +749,236 @@ int main (int argc, char** argv)
         }
     }
 
+    // ---------------------------------------------------------------- Psalter
+    std::cout << "psalter\n";
+    {
+        auto psalterProc = [] (ChromaProcessor& p, double sr)
+        {
+            p.presets.loadFactory (0);
+            p.setSlotType (0, EffectType::Psalter);
+            p.prepareToPlay (sr, kBlock);
+        };
+        auto setAll = [] (ChromaProcessor& p, int note)
+        {
+            for (int k = 0; k < 3; ++k) setParam (p, slotParam (0, psalterNoteId (k)), (float) note);
+        };
+        // частоты дискретизации: не тишина, не NaN, ≤ 0 dBFS, L ≠ R, звук меняется
+        for (double sr : { 44100.0, 48000.0, 96000.0 })
+        {
+            ChromaProcessor p;
+            psalterProc (p, sr);
+            const auto in = testSignal (sr, 3.0, 0.25f);
+            auto out = run (p, in);
+            checkAudio (out, "psalter @" + juce::String (sr));
+            const float corr = correlation (out);
+            std::cout << "  " << sr << " Hz: peak " << juce::String (stats (out).peak, 3) << ", corr " << juce::String (corr, 3)
+                      << ", level " << juce::String (rmsDb (out, (int) sr, (int) (3 * sr)) - rmsDb (in, (int) sr, (int) (3 * sr)), 1) << " dB\n";
+            CHECK (corr < 0.98f, "psalter: L and R must differ (correlation " << corr << ")");
+            CHECK (maxDiff (out, in) > 0.01f, "psalter changes the sound");
+        }
+        // ловит гармоники: шум через ноту A4 (все три ноты — A4, Glass, Depth 0) — мощность собирается у 440, 880, 1320 Гц
+        {
+            const double sr = 48000.0;
+            for (int tb = 0; tb < 4; ++tb)
+            {
+                ChromaProcessor p;
+                p.presets.loadFactory (0);
+                p.setSlotType (0, EffectType::Psalter);
+                setAll (p, 69);
+                setParam (p, slotParam (0, ParamId::timbre), (float) tb);
+                setParam (p, slotParam (0, ParamId::psDepth), 0.0f);
+                p.prepareToPlay (sr, kBlock);
+                const auto in = noiseSignal (sr, 3.0);
+                auto out = run (p, in);
+                // у колокола партиалы негармоничны: хум, прайм, терция, квинта, номинал (= нота)… — меряем у них
+                const std::vector<double> bell { 0.25, 0.5, 0.6, 0.75, 1.0, 1.25, 1.335, 1.5, 2.0, 2.66, 3.4 };
+                auto share = [&] (const juce::AudioBuffer<float>& b)
+                {
+                    const auto ps = powerSpectrum (b, 0, (int) sr);
+                    if (tb != 2) return harmonicShare (ps, sr, 440.0, 4.0);
+                    const double bin = sr / (2.0 * (double) ps.size());
+                    double in = 0, all = 0;
+                    for (size_t k = 1; k < ps.size() && k * bin < 6000.0; ++k)
+                    {
+                        all += ps[k];
+                        for (double r : bell) if (std::abs (k * bin - 440.0 * r) <= 4.0) { in += ps[k]; break; }
+                    }
+                    return in / juce::jmax (1e-30, all);
+                };
+                const double shareIn = share (in), shareOut = share (out);
+                std::cout << "  " << psalterTimbres()[tb] << ": noise share at A4 harmonics " << juce::String (shareIn, 3) << " -> " << juce::String (shareOut, 3)
+                          << ", level " << juce::String (rmsDb (out, (int) sr, 3 * (int) sr) - rmsDb (in, (int) sr, 3 * (int) sr), 1) << " dB\n";
+                CHECK (shareOut > 0.5 && shareOut > 8.0 * shareIn, "psalter " << psalterTimbres()[tb] << ": harmonics not caught (" << shareOut << ")");
+            }
+        }
+        // новых тонов не добавляет: синус 300 Гц мимо нот C5 D5 E5 остаётся на 300 Гц
+        {
+            const double sr = 48000.0;
+            ChromaProcessor p;
+            psalterProc (p, sr);
+            setParam (p, slotParam (0, ParamId::psDepth), 0.0f);
+            juce::AudioBuffer<float> sine (2, 3 * (int) sr);
+            for (int i = 0; i < sine.getNumSamples(); ++i) { const float v = 0.3f * (float) std::sin (2.0 * 3.141592653589793 * 300.0 * i / sr); sine.setSample (0, i, v); sine.setSample (1, i, v); }
+            auto out = run (p, sine);
+            const double f = peakHz (powerSpectrum (out, 0, (int) sr), sr);
+            std::cout << "  sine 300 Hz -> peak " << juce::String (f, 1) << " Hz\n";
+            CHECK (std::abs (f - 300.0) < 3.0, "psalter added a pitch: peak at " << f << " Hz");
+        }
+        // громкость в пределах на разных входах и тембрах (подстройка под вход)
+        {
+            const double sr = 48000.0;
+            juce::String line = "  level vs input:";
+            const juce::AudioBuffer<float> inputs[3] = { testSignal (sr, 4.0, 0.25f), sawSignal (sr, 4.0, 65.41), voiceSignal (sr, 4.0, { 196.0, 262.0 }, 2.0) };
+            const char* inNames[3] = { "chord", "bassC2", "voice" };
+            for (int tb = 0; tb < 4; ++tb)
+                for (int ii = 0; ii < 3; ++ii)
+                {
+                    ChromaProcessor p;
+                    p.presets.loadFactory (0);
+                    p.setSlotType (0, EffectType::Psalter);
+                    setParam (p, slotParam (0, ParamId::timbre), (float) tb);
+                    p.prepareToPlay (sr, kBlock);
+                    auto out = run (p, inputs[ii]);
+                    checkAudio (out, "psalter level");
+                    const float lvl = rmsDb (out, (int) (1.5 * sr), 4 * (int) sr) - rmsDb (inputs[ii], (int) (1.5 * sr), 4 * (int) sr);
+                    line << " " << psalterTimbres()[tb] << "/" << inNames[ii] << " " << juce::String (lvl, 1);
+                    CHECK (std::abs (lvl) < 6.0f, "psalter: " << psalterTimbres()[tb] << " on " << inNames[ii] << " level " << lvl << " dB");
+                }
+            std::cout << line << "\n";
+        }
+        // хвост: вход кончился — ноты звенят дальше и затихают, подстройка их не поднимает
+        {
+            const double sr = 48000.0;
+            ChromaProcessor p;
+            psalterProc (p, sr);
+            setParam (p, slotParam (0, ParamId::psDepth), 0.0f);
+            setParam (p, slotParam (0, ParamId::decay), 3.0f);
+            p.prepareToPlay (sr, kBlock);
+            auto in = sawSignal (sr, 4.0, 130.81);
+            in.clear ((int) (1.5 * sr), in.getNumSamples() - (int) (1.5 * sr));
+            auto out = run (p, in);
+            const float body = rmsDb (out, (int) (0.8 * sr), (int) (1.5 * sr));
+            const float t1 = rmsDb (out, (int) (1.7 * sr), (int) (2.1 * sr)), t2 = rmsDb (out, (int) (3.0 * sr), (int) (3.4 * sr));
+            std::cout << "  tail: body " << juce::String (body, 1) << " dB, +0.2 s " << juce::String (t1, 1) << " dB, +1.5 s " << juce::String (t2, 1) << " dB\n";
+            CHECK (t1 > body - 30.0f && t1 < body + 1.0f, "psalter: tail cut or pumped (" << t1 - body << " dB)");
+            CHECK (t2 < t1 - 6.0f, "psalter: tail does not decay");
+        }
+        // тишина остаётся тишиной; Mix 0 — сухой бит-в-бит; Width 0 — моно
+        {
+            const double sr = 48000.0;
+            ChromaProcessor p;
+            psalterProc (p, sr);
+            juce::AudioBuffer<float> zero (2, (int) sr);
+            zero.clear();
+            CHECK (stats (run (p, zero)).peak == 0.0f, "psalter: silence stays silent");
+            setParam (p, slotParam (0, ParamId::width), 0.0f);
+            setParam (p, slotParam (0, ParamId::psDepth), 0.0f);   // только ноты, без сухого (он стерео)
+            run (p, testSignal (sr, 0.3, 0.25f, false));
+            const auto mono = run (p, testSignal (sr, 1.0, 0.25f, false));
+            float d = 0;
+            for (int i = 0; i < mono.getNumSamples(); ++i) d = juce::jmax (d, std::abs (mono.getSample (0, i) - mono.getSample (1, i)));
+            CHECK (d < 1e-5f, "psalter: width 0 is not mono (" << d << ")");
+            setParam (p, slotParam (0, ParamId::mix), 0.0f);
+            run (p, testSignal (sr, 0.3));
+            const auto in2 = testSignal (sr, 1.0, 0.25f, false);
+            CHECK (maxDiff (run (p, in2), in2) == 0.0f, "psalter mix 0 → dry");
+        }
+        // ноты на ходу: фоновый поток пересобирает ноту, свёртка переходит на неё
+        {
+            const double sr = 48000.0;
+            ChromaProcessor p;
+            p.presets.loadFactory (0);
+            p.setSlotType (0, EffectType::Psalter);
+            setAll (p, 69);
+            setParam (p, slotParam (0, ParamId::timbre), 3.0f);
+            setParam (p, slotParam (0, ParamId::psDepth), 0.0f);
+            p.prepareToPlay (sr, kBlock);
+            const auto in = noiseSignal (sr, 1.0);
+            run (p, in);
+            setAll (p, 76);   // E5, 659 Гц
+            for (int k = 0; k < 30; ++k) { run (p, noiseSignal (sr, 0.05, 0.2f, k)); juce::Thread::sleep (20); }
+            auto out = run (p, noiseSignal (sr, 2.0));
+            const double share = harmonicShare (powerSpectrum (out, 0, (int) (0.5 * sr)), sr, 659.26, 4.0);
+            std::cout << "  note on the fly A4 -> E5: share at E5 harmonics " << juce::String (share, 3) << "\n";
+            CHECK (share > 0.5, "psalter: note change on the fly did not arrive (" << share << ")");
+            // тембр и Decay на ходу — без NaN и перегруза
+            for (int k = 0; k < 8; ++k)
+            {
+                setParam (p, slotParam (0, ParamId::timbre), (float) (k % 4));
+                setParam (p, slotParam (0, ParamId::decay), k % 2 == 0 ? 0.3f : 6.0f);
+                checkAudio (run (p, testSignal (sr, 0.25, 0.5f, false)), "psalter switching " + juce::String (k));
+                juce::Thread::sleep (60);
+            }
+        }
+        // свои сэмплы: нота 1000 Гц из «сэмпла» ловит гармоники 1000 Гц; проект, пресет эффекта, копия, очистка, фабричный пресет
+        {
+            const double sr = 48000.0;
+            ChromaProcessor p;
+            p.presets.loadFactory (0);
+            p.setSlotType (0, EffectType::Psalter);
+            setParam (p, slotParam (0, ParamId::psDepth), 0.0f);
+            juce::AudioBuffer<float> smp (1, 44100);
+            for (int i = 0; i < smp.getNumSamples(); ++i)
+                smp.setSample (0, i, 0.5f * (float) (std::sin (2.0 * 3.141592653589793 * 1000.0 * i / 44100.0) * std::exp (-3.0 * i / 44100.0)));
+            for (int k = 0; k < 3; ++k) CHECK (p.setPsalterSample (0, k, smp, 44100.0, "ping"), "psalter: sample not set");
+            p.prepareToPlay (sr, kBlock);
+            auto out = run (p, noiseSignal (sr, 3.0));
+            const double share = harmonicShare (powerSpectrum (out, 0, (int) sr), sr, 1000.0, 5.0);
+            std::cout << "  own sample 1 kHz: share " << juce::String (share, 3) << "\n";
+            CHECK (share > 0.5, "psalter: own sample is not used (" << share << ")");
+            checkAudio (out, "psalter own sample");
+            juce::MemoryBlock mb;
+            p.getStateInformation (mb);
+            ChromaProcessor q;
+            q.setStateInformation (mb.getData(), (int) mb.getSize());
+            CHECK (q.hasPsalterSample (0, 1) && q.getPsalterSampleName (0, 1) == "ping", "psalter: sample not restored from project");
+            q.prepareToPlay (sr, kBlock);
+            const double share2 = harmonicShare (powerSpectrum (run (q, noiseSignal (sr, 3.0)), 0, (int) sr), sr, 1000.0, 5.0);
+            CHECK (share2 > 0.5, "psalter: restored sample does not sound (" << share2 << ")");
+            const auto fx = q.captureEffect (0);
+            q.copySlot (0, 2);
+            CHECK (q.hasPsalterSample (2, 0) && q.getSlotType (2) == EffectType::Psalter, "psalter: copySlot does not copy samples");
+            q.clearSlot (2);
+            CHECK (! q.hasPsalterSample (2, 0), "psalter: clearSlot keeps samples");
+            q.loadEffectFactory (0, 0);
+            CHECK (! q.hasPsalterSample (0, 0), "psalter: factory effect preset keeps samples");
+            auto xml = fx.createXml();
+            CHECK (xml != nullptr && q.applyEffect (0, juce::ValueTree::fromXml (*xml)) && q.hasPsalterSample (0, 2), "psalter: effect preset does not carry samples");
+            q.clearPsalterSample (0, 2);
+            CHECK (! q.hasPsalterSample (0, 2) && q.hasPsalterSample (0, 1), "psalter: clear one sample");
+            q.presets.loadFactory (0);
+            CHECK (! q.hasPsalterSample (0, 1), "psalter: factory preset keeps samples");
+        }
+        // крайние значения и громкий вход; моно
+        {
+            const double sr = 48000.0;
+            ChromaProcessor p;
+            psalterProc (p, sr);
+            for (auto [id, v] : std::initializer_list<std::pair<const char*, float>> {
+                     { ParamId::decay, 6.0f }, { ParamId::tone, 100.0f }, { ParamId::psRate, 8.0f }, { ParamId::psDepth, 100.0f }, { ParamId::width, 100.0f } })
+                setParam (p, slotParam (0, id), v);
+            setAll (p, 24);
+            p.prepareToPlay (sr, kBlock);
+            checkAudio (run (p, testSignal (sr, 2.0, 0.95f, false)), "psalter extremes, low notes, loud chord");
+            setAll (p, 108);
+            setParam (p, slotParam (0, ParamId::tone), 0.0f);
+            setParam (p, slotParam (0, ParamId::decay), 0.2f);
+            p.prepareToPlay (sr, kBlock);
+            checkAudio (run (p, testSignal (sr, 2.0, 0.95f, false)), "psalter extremes, high notes, loud chord");
+            ChromaProcessor m;
+            juce::AudioProcessor::BusesLayout mono;
+            mono.inputBuses.add (juce::AudioChannelSet::mono());
+            mono.outputBuses.add (juce::AudioChannelSet::mono());
+            m.setBusesLayout (mono);
+            psalterProc (m, sr);
+            juce::AudioBuffer<float> one (1, (int) sr * 2);
+            const auto src = testSignal (sr, 2.0);
+            one.copyFrom (0, 0, src, 0, 0, one.getNumSamples());
+            const auto ms = stats (run (m, one));
+            CHECK (! ms.nan && ms.peak <= 1.0f && ms.rms > 0.003f, "psalter mono");
+        }
+    }
+
     // ---------------------------------------------------------------- порядок, копия, состояние
     std::cout << "rack and state\n";
     {
@@ -746,7 +1048,7 @@ int main (int argc, char** argv)
         CHECK (emptyRest, "old project: slots 5-8 not reset to empty");
         CHECK (p.getSlotType (0) == EffectType::Ophan, "old project: slot 1 lost");
         // 8 эффектов в Serial и Parallel
-        for (int s = 0; s < kSlots; ++s) p.setSlotType (s, s % 3 == 0 ? EffectType::Ophan : s % 3 == 1 ? EffectType::OttStack : EffectType::Legion);
+        for (int s = 0; s < kSlots; ++s) p.setSlotType (s, (EffectType) (1 + s % 4));   // Ophan, OTT Stack, Legion, Psalter
         p.prepareToPlay (48000.0, kBlock);
         checkAudio (run (p, testSignal (48000.0, 1.0)), "eight slots serial");
         p.setChainMode (ChainMode::Parallel);
@@ -762,7 +1064,9 @@ int main (int argc, char** argv)
         const auto& fo = effectFactoryPresets (EffectType::Ophan);
         const auto& ft = effectFactoryPresets (EffectType::OttStack);
         const auto& fl = effectFactoryPresets (EffectType::Legion);
-        std::cout << "  " << fo.size() << " Ophan, " << ft.size() << " OTT Stack, " << fl.size() << " Legion\n";
+        const auto& fp = effectFactoryPresets (EffectType::Psalter);
+        std::cout << "  " << fo.size() << " Ophan, " << ft.size() << " OTT Stack, " << fl.size() << " Legion, " << fp.size() << " Psalter\n";
+        CHECK (fp.size() == 5 && fp[0].name == "Harmonic Waves", "Psalter factory effect presets");
         CHECK (fl.size() >= 8 && fl[0].name == "We Are Many", "Legion factory effect presets");
         CHECK (fo.size() >= 8 && fo[0].name == "Biblically Accurate", "Ophan factory effect presets");
         CHECK (ft.size() >= 4, "OTT factory effect presets");
@@ -818,6 +1122,17 @@ int main (int argc, char** argv)
         const auto ls = q.captureEffect (3);
         setParam (q, slotParam (3, ParamId::voices), 50.0f);
         CHECK (q.applyEffect (3, ls) && juce::roundToInt (qv (ParamId::voices)) == 12, "Legion effect preset round trip");
+        // Psalter: ноты, тембр и ручки грузятся; пресет Legion — нет
+        q.setSlotType (4, EffectType::Psalter);
+        for (int i = 0; i < (int) fp.size(); ++i)
+            if (fp[(size_t) i].name == "Bell Tower") q.loadEffectFactory (4, i);
+        auto pv = [&q] (const char* id) { return q.apvts.getRawParameterValue (slotParam (4, id))->load(); };
+        CHECK (juce::roundToInt (pv (ParamId::timbre)) == 2 && juce::roundToInt (pv (ParamId::note1)) == 62 && juce::roundToInt (pv (ParamId::note3)) == 76
+               && std::abs (pv (ParamId::decay) - 6.0f) < 0.01f, "Psalter effect preset values");
+        CHECK (! q.applyEffect (4, ls), "Legion preset applied to Psalter");
+        const auto ps = q.captureEffect (4);
+        setParam (q, slotParam (4, ParamId::note2), 40.0f);
+        CHECK (q.applyEffect (4, ps) && juce::roundToInt (pv (ParamId::note2)) == 69, "Psalter effect preset round trip");
     }
 
     // ---------------------------------------------------------------- параллельный режим
@@ -929,6 +1244,7 @@ int main (int argc, char** argv)
             p.setSlotType (2, EffectType::Ophan);
             setParam (p, slotParam (2, ParamId::on), 0.0f);
             p.setSlotType (4, EffectType::Legion);
+            p.setSlotType (5, EffectType::Psalter);
             setParam (p, ParamId::output, -2.0f);
             p.prepareToPlay (sr, kBlock);
         };
@@ -940,15 +1256,19 @@ int main (int argc, char** argv)
         int worstSilent = 0;
         float worstPeak = 0;
         bool rateChanged = false, countChanged = false, mixChanged = false, advChanged = false, orderChanged = false, voicesChanged = false, charChanged = false;
+        bool noteChanged = false, timbreChanged = false;
         for (int k = 0; k < 40; ++k)
         {
             const float rate0 = value (p, slotParam (0, ParamId::rate)), count0 = value (p, slotParam (1, ParamId::count));
             const float mix0 = value (p, slotParam (0, ParamId::mix)), q0 = p.advanced (0).band[0][2].q.load();
             const auto o0 = p.getOrder();
             const float voices0 = value (p, slotParam (4, ParamId::voices)), char0 = value (p, slotParam (4, ParamId::character));
+            const float note0 = value (p, slotParam (5, ParamId::note1)), timbre0 = value (p, slotParam (5, ParamId::timbre));
             randomizeRack (p, rng);
             voicesChanged |= value (p, slotParam (4, ParamId::voices)) != voices0;
             charChanged |= value (p, slotParam (4, ParamId::character)) != char0;
+            noteChanged |= value (p, slotParam (5, ParamId::note1)) != note0;
+            timbreChanged |= value (p, slotParam (5, ParamId::timbre)) != timbre0;
             rateChanged |= value (p, slotParam (0, ParamId::rate)) != rate0;
             countChanged |= value (p, slotParam (1, ParamId::count)) != count0;
             mixChanged |= value (p, slotParam (0, ParamId::mix)) != mix0;
@@ -962,7 +1282,9 @@ int main (int argc, char** argv)
         std::cout << "  40 rolls: worst peak " << juce::String (worstPeak, 3) << ", silent " << worstSilent << "\n";
         CHECK (worstSilent == 0, "dice produced silence");
         CHECK (worstPeak <= 1.0f, "dice: peak above 0 dBFS");
-        CHECK (rateChanged && countChanged && mixChanged && advChanged && orderChanged && voicesChanged && charChanged, "dice did not change something it may change");
+        CHECK (rateChanged && countChanged && mixChanged && advChanged && orderChanged && voicesChanged && charChanged && noteChanged && timbreChanged,
+               "dice did not change something it may change");
+        CHECK (p.getSlotType (5) == EffectType::Psalter, "dice changed the Psalter slot type");
         CHECK (p.getSlotType (4) == EffectType::Legion, "dice changed the Legion slot type");
         // никогда не трогает: тип, пустой слот, On, громкость, Output у OTT, режим
         CHECK (p.getSlotType (0) == EffectType::Ophan && p.getSlotType (1) == EffectType::OttStack && p.getSlotType (2) == EffectType::Ophan
@@ -983,16 +1305,18 @@ int main (int argc, char** argv)
             juce::MemoryBlock before;
             const float rate0 = value (q, slotParam (0, ParamId::rate)), mix0 = value (q, slotParam (1, ParamId::mix)), q0 = q.advanced (0).band[1][4].q.load();
             const float count0 = value (q, slotParam (1, ParamId::count)), voices0 = value (q, slotParam (4, ParamId::voices));
+            const float pnote0 = value (q, slotParam (5, ParamId::note2));
             juce::Random r2 (9);
             bool cnt = false;
             for (int k = 0; k < 10; ++k) { randomizeRack (q, r2, o); cnt |= value (q, slotParam (1, ParamId::count)) != count0; }
             CHECK (cnt, "dice: OTT allowed but count never changed");
             CHECK (value (q, slotParam (0, ParamId::rate)) == rate0, "dice: Ophan disabled but changed");
             CHECK (value (q, slotParam (4, ParamId::voices)) == voices0, "dice: Legion disabled but changed");
+            CHECK (value (q, slotParam (5, ParamId::note2)) == pnote0, "dice: Psalter disabled but changed");
             CHECK (value (q, slotParam (1, ParamId::mix)) == mix0, "dice: Mix disabled but changed");
             CHECK (q.advanced (0).band[1][4].q.load() == q0, "dice: advanced disabled but changed");
             const auto o0 = q.getOrder();
-            CHECK (o0[0] == 0 && o0[1] == 1 && o0[2] == 2 && o0[3] == 3 && o0[4] == 4, "dice: order disabled but changed");
+            CHECK (o0[0] == 0 && o0[1] == 1 && o0[2] == 2 && o0[3] == 3 && o0[4] == 4 && o0[5] == 5, "dice: order disabled but changed");
             // в Parallel порядок не трогается даже при разрешении
             o.enabled.fill (true);
             q.setChainMode (ChainMode::Parallel);
@@ -1067,6 +1391,25 @@ int main (int argc, char** argv)
         std::cout << "  4 x Legion x64, 10 s stereo in " << juce::String (ms4, 0) << " ms (" << juce::String (10000.0 / ms4, 1) << "x realtime)\n";
         CHECK (ms4 < 6000.0, "Legion too slow");
         checkAudio (out4, "speed Legion");
+        // Psalter: самые длинные ноты (6 с) — свёртка тяжелее всего
+        for (int s = 0; s < 4; ++s)
+        {
+            p.setSlotType (s, EffectType::Psalter);
+            setParam (p, slotParam (s, ParamId::decay), 6.0f);
+        }
+        p.prepareToPlay (48000.0, kBlock);
+        const auto t4 = juce::Time::getMillisecondCounterHiRes();
+        auto out5 = run (p, in);
+        const double ms5 = juce::Time::getMillisecondCounterHiRes() - t4;
+        std::cout << "  4 x Psalter (decay 6 s), 10 s stereo in " << juce::String (ms5, 0) << " ms (" << juce::String (10000.0 / ms5, 1) << "x realtime)\n";
+        CHECK (ms5 < 6000.0, "Psalter too slow");
+        checkAudio (out5, "speed Psalter");
+        for (int s = 0; s < 4; ++s) setParam (p, slotParam (s, ParamId::decay), 3.0f);
+        p.prepareToPlay (48000.0, kBlock);
+        const auto t5 = juce::Time::getMillisecondCounterHiRes();
+        run (p, in);
+        const double ms6 = juce::Time::getMillisecondCounterHiRes() - t5;
+        std::cout << "  4 x Psalter (decay 3 s), 10 s stereo in " << juce::String (ms6, 0) << " ms (" << juce::String (10000.0 / ms6, 1) << "x realtime)\n";
     }
 
     // ---------------------------------------------------------------- демо WAV
@@ -1100,6 +1443,30 @@ int main (int argc, char** argv)
                     auto out = run (p, sung);
                     writeWav (outDir.getChildFile ("demo_" + juce::String (k++) + "_" + juce::String (nm).replace (" ", "_").toLowerCase() + ".wav"), out, sr);
                 }
+        // Psalter — на аккордах; «Low Bloom» — ещё и на басовой пиле с шумом, как в видео
+        k = 31;
+        for (auto* nm : { "Harmonic Waves", "Psaltery", "Low Bloom", "Minor Drift", "Bell Tower" })
+            for (int i = 0; i < p.presets.getNumFactory(); ++i)
+                if (juce::String (factoryPresets()[(size_t) i].name) == nm)
+                {
+                    p.presets.loadFactory (i);
+                    p.prepareToPlay (sr, kBlock);
+                    auto out = run (p, in);
+                    writeWav (outDir.getChildFile ("demo_" + juce::String (k++) + "_" + juce::String (nm).replace (" ", "_").toLowerCase() + ".wav"), out, sr);
+                }
+        {
+            auto bass = sawSignal (sr, 12.0, 65.41, 0.25f);
+            const auto hiss = noiseSignal (sr, 12.0, 0.03f);
+            for (int c = 0; c < 2; ++c) bass.addFrom (c, 0, hiss, c, 0, bass.getNumSamples());
+            writeWav (outDir.getChildFile ("demo_40_saw_noise_dry.wav"), bass, sr);
+            for (int i = 0; i < p.presets.getNumFactory(); ++i)
+                if (juce::String (factoryPresets()[(size_t) i].name) == "Harmonic Waves")
+                {
+                    p.presets.loadFactory (i);
+                    p.prepareToPlay (sr, kBlock);
+                    writeWav (outDir.getChildFile ("demo_41_harmonic_waves_saw_noise.wav"), run (p, bass), sr);
+                }
+        }
     }
 
     // ---------------------------------------------------------------- интерфейс
@@ -1173,6 +1540,28 @@ int main (int argc, char** argv)
                 run (p, sungUi, ed);
                 shoot ("ui_" + tn + "_legion_scope");
                 ed->setViewForTest (0);
+            }
+
+            for (int i = 0; i < p.presets.getNumFactory(); ++i)
+                if (juce::String (factoryPresets()[(size_t) i].name) == "Harmonic Waves") p.presets.loadFactory (i);
+            p.prepareToPlay (48000.0, kBlock);
+            ed->selectSlotForTest (0);
+            run (p, demoSignal (48000.0, 2.4), ed);
+            shoot ("ui_" + tn + "_psalter");
+            ed->setViewForTest (1);
+            run (p, music, ed);
+            shoot ("ui_" + tn + "_psalter_scope");
+            ed->setViewForTest (0);
+            {
+                // свой сэмпл на третьей ноте и окно сэмплов
+                juce::AudioBuffer<float> smp (1, 22050);
+                for (int i = 0; i < smp.getNumSamples(); ++i) smp.setSample (0, i, 0.4f * (float) (std::sin (0.13 * i) * std::exp (-4.0 * i / 22050.0)));
+                p.setPsalterSample (0, 2, smp, 44100.0, "kalimba_E5");
+                run (p, music, ed);
+                ed->showSamplesForTest (true);
+                shoot ("ui_" + tn + "_psalter_samples");
+                ed->showSamplesForTest (false);
+                p.clearPsalterSample (0, 2);
             }
 
             for (int i = 0; i < p.presets.getNumFactory(); ++i)
